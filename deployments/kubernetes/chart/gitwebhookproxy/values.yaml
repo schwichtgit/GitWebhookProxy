@@ -1,7 +1,6 @@
 # Generated from /kubernetes/templates/chart/values.yaml.tmpl
 
 kubernetes:
-  host: https://kubernetes.default
 
 gitWebhookProxy:
   replicas: 1
@@ -30,9 +29,10 @@ gitWebhookProxy:
     annotations: {}
     ports:
       - name: http
-        port: 80
+        port: 8080
         protocol: TCP
         targetPort: 8080
+        servicePort: 80
   securityContext:
     readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
@@ -49,3 +49,45 @@ gitWebhookProxy:
     tlsSecretName: ""
     serviceName: gitwebhookproxy
     servicePort: 80
+    # GCP specific configurations
+    gcp:
+      # Enable GCP FrontendConfig
+      enabled: false
+      # Name of the FrontendConfig resource
+      name: ""
+      # Backend configuration
+      backend:
+        # Enable backend configuration
+        enabled: false
+        # Name of the backend service
+        name: ""
+        # Health check configuration
+        healthCheck:
+          # Enable health check
+          enabled: false
+          # Health check path
+          checkIntervalSec: 30
+          timeoutSec: 5
+          healthyThreshold: 2
+          unhealthyThreshold: 3
+          type: HTTP
+          port: 8080
+          requestPath: "/health"
+          # Additional health check configuration
+          # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#direct_health
+          proxyHeader: NONE
+          logConfig:
+            enabled: false
+      # SSL policy configuration
+      sslPolicy:
+        # Enable SSL policy
+        enabled: false
+        # Name of the SSL policy
+        name: "modern-ssl-policy"
+      # Redirect configuration
+      redirects:
+        enabled: false
+        # Redirect configurations
+        # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#https_redirect
+        type: PERMANENT_REDIRECT
+        responseCode: MOVED_PERMANENTLY_DEFAULT

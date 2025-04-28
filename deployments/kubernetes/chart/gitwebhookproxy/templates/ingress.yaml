@@ -2,8 +2,17 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-{{- if .Values.gitWebhookProxy.ingress.annotations }}
   annotations:
+{{- if .Values.gitWebhookProxy.ingress.gcp.enabled }}
+    {{- if .Values.gitWebhookProxy.ingress.gcp.name }}
+    networking.gke.io/v1beta1.FrontendConfig: {{ .Values.gitWebhookProxy.ingress.gcp.name }}
+    {{- else if .Values.gitWebhookProxy.useCustomName }}
+    networking.gke.io/v1beta1.FrontendConfig: {{ .Values.gitWebhookProxy.customName }}-frontend
+    {{- else }}
+    networking.gke.io/v1beta1.FrontendConfig: {{ template "gitwebhookproxy.name" . }}-frontend
+    {{- end }}
+{{- end }}
+{{- if .Values.gitWebhookProxy.ingress.annotations }}
 {{ toYaml .Values.gitWebhookProxy.ingress.annotations | indent 4 }}
 {{- end }}
   labels:
