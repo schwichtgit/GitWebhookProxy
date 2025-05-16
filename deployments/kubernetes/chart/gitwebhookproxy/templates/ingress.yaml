@@ -24,11 +24,13 @@ metadata:
   name: {{ template "gitwebhookproxy.name" . }}
 {{- end }}
 spec:
+  ingressClassName:  {{ .Values.gitWebhookProxy.ingress.ingressClassName }}
   rules:
   - host: {{ .Values.gitWebhookProxy.ingress.host }}
     http:
       paths:
       - pathType: ImplementationSpecific
+        path: {{ .Values.gitWebhookProxy.ingress.path }}
         backend:
         {{- if .Values.gitWebhookProxy.useCustomName }}
           service:
@@ -40,6 +42,7 @@ spec:
             name: {{ template "gitwebhookproxy.name" . }}
             port:
               number: {{ .Values.gitWebhookProxy.servicePort }}
+        {{- end }}
   tls:
   - hosts:
     - {{ .Values.gitWebhookProxy.ingress.host }}

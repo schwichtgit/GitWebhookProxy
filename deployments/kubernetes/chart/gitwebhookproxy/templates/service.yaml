@@ -26,6 +26,7 @@ metadata:
   name: {{ template "gitwebhookproxy.name" . }}
 {{- end }}
 spec:
+  type: NodePort
   ports:
   - name: http
     port: {{ .Values.gitWebhookProxy.service.ports.servicePort }}
