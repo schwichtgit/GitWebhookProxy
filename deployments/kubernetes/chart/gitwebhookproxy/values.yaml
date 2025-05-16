@@ -34,20 +34,9 @@ gitWebhookProxy:
     allowedPaths: "/github-webhook,/project"
     # Secret for webhook validation
     secret: ""
-    # Rate limiting configuration
-    rateLimit:
-      enabled: true
-      requestsPerSecond: 10
-      burstSize: 20
     # User filtering configuration
     ignoredUsers: "stakater-user"
     allowedUsers: "myuser"
-    # Retry configuration for failed webhook deliveries
-    retry:
-      enabled: true
-      maxRetries: 3
-      initialDelay: "5s"
-      maxDelay: "1m"
   service:
     labels:
       expose: "true"
@@ -101,15 +90,9 @@ gitWebhookProxy:
           # Additional health check configuration
           # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#direct_health
           proxyHeader: NONE
-          # Response codes considered healthy (optional)
-          healthyCodes: "200-399"
-          # Custom request headers (optional)
-          requestHeaders: []
           # Health check logging configuration
           logConfig:
             enabled: true
-            # Log sample rate (0.0-1.0)
-            sampleRate: 0.1
       # SSL policy configuration
       sslPolicy:
         # Enable SSL policy
@@ -121,5 +104,4 @@ gitWebhookProxy:
         enabled: false
         # Redirect configurations
         # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#https_redirect
-        type: PERMANENT_REDIRECT
         responseCode: MOVED_PERMANENTLY_DEFAULT
