@@ -16,11 +16,25 @@ gitWebhookProxy:
     name: stakater/gitwebhookproxy
     tag: "v0.2.80"
     pullPolicy: IfNotPresent
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
   config:
+    # Provider configuration with defaults
+    # Supported values: github, gitlab, bitbucket
     provider: github
+    # Upstream service URL to forward webhooks to
     upstreamURL: "https://jenkins.tools.stackator.com"
+    # Comma-separated list of allowed webhook paths
     allowedPaths: "/github-webhook,/project"
+    # Secret for webhook validation
     secret: ""
+    # User filtering configuration
     ignoredUsers: "stakater-user"
     allowedUsers: "myuser"
   service:
@@ -64,10 +78,10 @@ gitWebhookProxy:
         # Health check configuration
         healthCheck:
           # Enable health check
-          enabled: false
-          # Health check path
-          checkIntervalSec: 30
-          timeoutSec: 5
+          enabled: true
+          # Health check configuration with optimized defaults
+          checkIntervalSec: 10
+          timeoutSec: 3
           healthyThreshold: 2
           unhealthyThreshold: 3
           type: HTTP
@@ -76,8 +90,9 @@ gitWebhookProxy:
           # Additional health check configuration
           # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#direct_health
           proxyHeader: NONE
+          # Health check logging configuration
           logConfig:
-            enabled: false
+            enabled: true
       # SSL policy configuration
       sslPolicy:
         # Enable SSL policy
@@ -89,5 +104,4 @@ gitWebhookProxy:
         enabled: false
         # Redirect configurations
         # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#https_redirect
-        type: PERMANENT_REDIRECT
         responseCode: MOVED_PERMANENTLY_DEFAULT
