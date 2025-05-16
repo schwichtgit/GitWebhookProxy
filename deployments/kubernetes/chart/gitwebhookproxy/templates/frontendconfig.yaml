@@ -16,7 +16,7 @@ spec:
   {{- if .Values.gitWebhookProxy.ingress.gcp.sslPolicy.enabled }}
   sslPolicy: {{ .Values.gitWebhookProxy.ingress.gcp.sslPolicy.name }}
   {{- end }}
-  
+
   {{- if .Values.gitWebhookProxy.ingress.gcp.redirects.enabled }}
   redirectToHttps:
     enabled: true

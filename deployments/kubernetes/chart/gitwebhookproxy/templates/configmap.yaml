@@ -20,3 +20,18 @@ data:
     {{- end }}
     ignoredUsers: {{ .Values.gitWebhookProxy.config.ignoredUsers | default "" | quote }}
     allowedUsers: {{ .Values.gitWebhookProxy.config.allowedUsers | default "" | quote }}
+
+    {{- if .Values.gitWebhookProxy.config.rateLimit.enabled }}
+    # Rate limiting configuration
+    rateLimitEnabled: "true"
+    rateLimitRequestsPerSecond: {{ .Values.gitWebhookProxy.config.rateLimit.requestsPerSecond | quote }}
+    rateLimitBurstSize: {{ .Values.gitWebhookProxy.config.rateLimit.burstSize | quote }}
+    {{- end }}
+
+    {{- if .Values.gitWebhookProxy.config.retry.enabled }}
+    # Retry configuration
+    retryEnabled: "true"
+    retryMaxRetries: {{ .Values.gitWebhookProxy.config.retry.maxRetries | quote }}
+    retryInitialDelay: {{ .Values.gitWebhookProxy.config.retry.initialDelay | quote }}
+    retryMaxDelay: {{ .Values.gitWebhookProxy.config.retry.maxDelay | quote }}
+    {{- end }}

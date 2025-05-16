@@ -16,13 +16,38 @@ gitWebhookProxy:
     name: stakater/gitwebhookproxy
     tag: "v0.2.80"
     pullPolicy: IfNotPresent
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
   config:
+    # Provider configuration with defaults
+    # Supported values: github, gitlab, bitbucket
     provider: github
+    # Upstream service URL to forward webhooks to
     upstreamURL: "https://jenkins.tools.stackator.com"
+    # Comma-separated list of allowed webhook paths
     allowedPaths: "/github-webhook,/project"
+    # Secret for webhook validation
     secret: ""
+    # Rate limiting configuration
+    rateLimit:
+      enabled: true
+      requestsPerSecond: 10
+      burstSize: 20
+    # User filtering configuration
     ignoredUsers: "stakater-user"
     allowedUsers: "myuser"
+    # Retry configuration for failed webhook deliveries
+    retry:
+      enabled: true
+      maxRetries: 3
+      initialDelay: "5s"
+      maxDelay: "1m"
   service:
     labels:
       expose: "true"
@@ -64,10 +89,10 @@ gitWebhookProxy:
         # Health check configuration
         healthCheck:
           # Enable health check
-          enabled: false
-          # Health check path
-          checkIntervalSec: 30
-          timeoutSec: 5
+          enabled: true
+          # Health check configuration with optimized defaults
+          checkIntervalSec: 10
+          timeoutSec: 3
           healthyThreshold: 2
           unhealthyThreshold: 3
           type: HTTP
@@ -76,8 +101,15 @@ gitWebhookProxy:
           # Additional health check configuration
           # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#direct_health
           proxyHeader: NONE
+          # Response codes considered healthy (optional)
+          healthyCodes: "200-399"
+          # Custom request headers (optional)
+          requestHeaders: []
+          # Health check logging configuration
           logConfig:
-            enabled: false
+            enabled: true
+            # Log sample rate (0.0-1.0)
+            sampleRate: 0.1
       # SSL policy configuration
       sslPolicy:
         # Enable SSL policy
