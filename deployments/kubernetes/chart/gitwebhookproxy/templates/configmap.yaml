@@ -3,8 +3,8 @@ kind: ConfigMap
 metadata:
   annotations:
   labels:
-{{- include "gitwebhookproxy.labels.stakater" . | indent 4 }}
-{{- include "gitwebhookproxy.labels.chart" . | indent 4 }}
+{{ include "gitwebhookproxy.labels.stakater" . | indent 4 }}
+{{ include "gitwebhookproxy.labels.chart" . | indent 4 }}
 {{- if .Values.gitWebhookProxy.useCustomName }}
   name: {{ .Values.gitWebhookProxy.customName }}
 {{- else }}

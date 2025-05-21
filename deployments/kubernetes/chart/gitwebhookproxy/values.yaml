@@ -42,11 +42,11 @@ gitWebhookProxy:
       expose: "true"
     annotations: {}
     ports:
-      - name: http
-        port: 8080
-        protocol: TCP
-        targetPort: 8080
-        servicePort: 80
+      name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+      servicePort: 80
   securityContext:
     readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
