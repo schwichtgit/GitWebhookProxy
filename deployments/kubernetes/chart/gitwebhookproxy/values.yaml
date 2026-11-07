@@ -4,7 +4,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/schwichtgit/gitwebhookproxy
-  # Defaults to "v" + the chart appVersion.
+  # Defaults to the chart appVersion.
   tag: ""
   # Optional image digest (sha256:...). When set, it is used instead of the tag.
   digest: ""

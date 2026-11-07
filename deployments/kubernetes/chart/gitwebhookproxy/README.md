@@ -65,7 +65,7 @@ annotations. Changes to an existing Secret referenced with
 |-----|------|---------|-------------|
 | `replicaCount` | int | `1` | Number of replicas. Ignored when `autoscaling.enabled` is true. |
 | `image.repository` | string | `ghcr.io/schwichtgit/gitwebhookproxy` | Image repository. |
-| `image.tag` | string | `""` | Image tag. Defaults to `v` + the chart `appVersion`. |
+| `image.tag` | string | `""` | Image tag. Defaults to the chart `appVersion`. |
 | `image.digest` | string | `""` | Image digest (`sha256:...`). Used instead of the tag when set. |
 | `image.pullPolicy` | string | `IfNotPresent` | Image pull policy. |
 | `imagePullSecrets` | list | `[]` | Pull secrets for the image. |
@@ -177,7 +177,7 @@ Values mapping:
 |-------|-------|
 | `gitWebhookProxy.replicas` | `replicaCount` |
 | `gitWebhookProxy.image.name` | `image.repository` (now `ghcr.io/schwichtgit/gitwebhookproxy`) |
-| `gitWebhookProxy.image.tag` | `image.tag` (defaults to `v<appVersion>`) |
+| `gitWebhookProxy.image.tag` | `image.tag` (defaults to `<appVersion>`) |
 | `gitWebhookProxy.useCustomName`, `customName` | `fullnameOverride` |
 | `gitWebhookProxy.config.*` | `config.*` |
 | `gitWebhookProxy.config.secret` | `secret.value` |

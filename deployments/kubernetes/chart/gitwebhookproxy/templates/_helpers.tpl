@@ -58,10 +58,10 @@ ServiceAccount name.
 {{- end }}
 
 {{/*
-Image tag. Defaults to "v" + appVersion.
+Image tag. Defaults to appVersion.
 */}}
 {{- define "gitwebhookproxy.imageTag" -}}
-{{- default (printf "v%s" .Chart.AppVersion) .Values.image.tag }}
+{{- default .Chart.AppVersion .Values.image.tag }}
 {{- end }}
 
 {{/*

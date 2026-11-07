@@ -41,7 +41,7 @@ tests:
             app.kubernetes.io/instance: gwp
       - matchRegex:
           path: spec.template.spec.containers[0].image
-          pattern: ^ghcr\.io/schwichtgit/gitwebhookproxy:v
+          pattern: ^ghcr\.io/schwichtgit/gitwebhookproxy:[0-9]
       - equal:
           path: spec.template.spec.automountServiceAccountToken
           value: false
@@ -83,11 +83,11 @@ tests:
   - it: uses the image tag and digest overrides
     template: templates/deployment.yaml
     set:
-      image.tag: v1.2.3
+      image.tag: 1.2.3
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/schwichtgit/gitwebhookproxy:v1.2.3
+          value: ghcr.io/schwichtgit/gitwebhookproxy:1.2.3
 
   - it: prefers the digest over the tag
     template: templates/deployment.yaml
