@@ -87,7 +87,7 @@ GoReleaser. The binary is built against the CMVP-validated Go Cryptographic
 Module (certificate #5247) and runs in FIPS 140-3 mode by default. At startup
 it logs:
 
-```
+```text
 FIPS 140-3 mode enabled (Go Cryptographic Module v1.0.0)
 ```
 
@@ -95,7 +95,7 @@ To build without it, set `GOFIPS140=off` (`make build GOFIPS140=off`, or
 `--build-arg GOFIPS140=off`). Release binaries are built for amd64 and arm64
 only; FIPS mode is not supported on 32-bit Windows.
 
-See https://go.dev/doc/security/fips140.
+See <https://go.dev/doc/security/fips140>.
 
 ## CI
 
