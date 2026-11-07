@@ -9,8 +9,9 @@ import (
 	"github.com/stakater/GitWebhookProxy/pkg/proxy"
 )
 
-// FIPS mode is enabled by setting the GOFIPS140 environment variable
-// To build with FIPS mode: export GOFIPS140='v1.0.0' && go build -o gitwebhookproxy-fips examples/main.go
+// FIPS 140-3 mode is selected at build time with GOFIPS140, for example:
+//
+//	GOFIPS140=v1.0.0 go build -o gitwebhookproxy-fips examples/main.go
 
 func main() {
 	// Define command-line flags
@@ -51,8 +52,7 @@ func main() {
 	// Create and run the proxy
 	log.Printf("Starting Git WebHook Proxy with provider '%s'", *provider)
 
-	// When GOFIPS140 environment variable is set, FIPS mode will be automatically enabled
-	// via the init() function in fips_config.go
+	// A binary built with GOFIPS140 set runs in FIPS 140-3 mode by default.
 	p, err := proxy.NewProxy(*upstreamURL, allowedPathsArray, *provider, *secret, ignoredUsersArray, allowedUsersArray)
 	if err != nil {
 		log.Fatal(err)

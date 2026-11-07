@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/fips140"
 	"fmt"
 	"log"
 	"os"
@@ -106,6 +107,12 @@ func main() {
 	}
 
 	log.Printf("Stakater Git WebHook Proxy started with provider '%s'\n", lowerProvider)
+
+	if fips140.Enabled() {
+		log.Printf("FIPS 140-3 mode enabled (Go Cryptographic Module %s)", fips140.Version())
+	} else {
+		log.Println("FIPS 140-3 mode disabled (build with GOFIPS140=v1.0.0 or run with GODEBUG=fips140=on to enable)")
+	}
 
 	if *insecureTLS {
 		log.Println("WARNING: upstream TLS certificate verification is disabled (insecureSkipVerify=true)")

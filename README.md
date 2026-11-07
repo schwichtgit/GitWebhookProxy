@@ -2,7 +2,7 @@
 
 A proxy service for Git webhooks that validates and forwards webhook events to an upstream URL.
 
-**Go Version:** 1.24.3
+**Go Version:** 1.27.3
 **FIPS Support:** Yes (when built with `GOFIPS140='v1.0.0'`)
 
 ## Overview
@@ -29,7 +29,7 @@ This version has been updated to use modern, well-maintained Go modules and incl
 - Replaced `github.com/julienschmidt/httprouter` with `github.com/go-chi/chi/v5`
 - Replaced `github.com/namsral/flag` with `github.com/spf13/pflag`
 - Added FIPS 140-3 compliant mode (when built with `GOFIPS140='v1.0.0'`)
-- Updated to Go 1.24.3
+- Updated to Go 1.27.3
 
 These changes address security concerns related to using outdated or abandoned modules that might have unpatched CVEs and provide FIPS 140-3 compliance for environments that require it.
 
@@ -99,20 +99,27 @@ go build -o gitwebhookproxy
 
 ### FIPS-Compliant Build
 
-```bash
-# Build with FIPS 140-3 compliance
-export GOFIPS140='v1.0.0'
-go build -o gitwebhookproxy-fips
+FIPS 140-3 mode is on by default in the container image and in `make build`. Both set
+`GOFIPS140=v1.0.0`, which builds against the CMVP-validated Go Cryptographic Module
+(certificate #5247). See https://go.dev/doc/security/fips140.
 
+```bash
+# Local build with FIPS 140-3 mode
+GOFIPS140=v1.0.0 go build -o gitwebhookproxy-fips
+
+# Container build (override with --build-arg GOFIPS140=off to disable)
+docker build -f build/package/Dockerfile.multi -t gitwebhookproxy .
 ```
 
-When built with `GOFIPS140='v1.0.0'`, the application will:
-- Use Go's built-in FIPS 140-3 compliant cryptographic modules
-- Configure TLS to use only FIPS-compliant cipher suites
-- Enforce TLS 1.2 or higher
-- Log FIPS mode initialization
+A binary built with `GOFIPS140` set:
+- Uses the selected Go Cryptographic Module version
+- Runs FIPS 140-3 mode by default (no runtime setting needed)
+- Restricts `crypto/tls` to approved protocol versions, cipher suites, signature algorithms and key exchanges
+- Logs `FIPS 140-3 mode enabled (Go Cryptographic Module v1.0.0...)` at startup
 
-Note: FIPS 140-3 compliance is enabled at build time by setting `GOFIPS140='v1.0.0'`. This environment variable is not needed or used at runtime.
+A binary built without `GOFIPS140` can still enable the mode at runtime with
+`GODEBUG=fips140=on`.
+
 ## Health Check
 
 The proxy provides a health check endpoint at `/health` that can be used to monitor the service.

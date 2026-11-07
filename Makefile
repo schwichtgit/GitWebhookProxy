@@ -25,7 +25,7 @@ CONTAINER_CLI := $(shell command -v podman 2> /dev/null || echo docker)
 BUILD_DATE := $(shell date -u +'%Y%m%d%H%M%S')
 
 goproxy := https://proxy.golang.org
-golang_fips140_version=v1.0.0
+golang_fips140_version ?= v1.0.0
 
 default: build test
 
@@ -33,9 +33,9 @@ install:
 	"$(GOCMD)" mod download
 
 build:
-	"$(GOCMD)" build ${GOFLAGS} ${LDFLAGS} -o "${BINARY}"
+	GOFIPS140="$(golang_fips140_version)" "$(GOCMD)" build ${GOFLAGS} ${LDFLAGS} -o "${BINARY}"
 
-# Legacy builder image method (single architecture)
+# Legacy builder image method (single architecture)finall
 builder-image:
 	@$(CONTAINER_CLI) build --network host -t "${BUILDER}" -f build/package/Dockerfile.build .
 
@@ -70,8 +70,8 @@ container:
 			--platform $$platform \
 			--iidfile $${container_digest_f} \
 			--file build/package/Dockerfile.multi \
-			--env=GOFIPS140="$(golang_fips140_version)" \
-			--env=GOPROXY="$(goproxy)" \
+			--build-arg=GOFIPS140="$(golang_fips140_version)" \
+			--build-arg=GOPROXY="$(goproxy)" \
 			--tag "${REPOSITORY}-b$(BUILD_DATE)-$$arch" . ;  then \
 				echo "FATAL: failed building ${REPOSITORY}-b$(BUILD_DATE)-$$arch." ; \
 				exit 1 ; \
