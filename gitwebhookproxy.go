@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/schwichtgit/GitWebhookProxy/pkg/proxy"
 	"github.com/spf13/pflag"
-	"github.com/stakater/GitWebhookProxy/pkg/proxy"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".

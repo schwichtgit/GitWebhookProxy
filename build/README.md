@@ -21,7 +21,7 @@ into the binary with `-X main.version=...` and printed at startup.
 | Target       | What it does |
 |--------------|--------------|
 | `build`      | Builds `./gitwebhookproxy` with `CGO_ENABLED=0` and `-trimpath`. |
-| `test`       | `go test -race` on all packages except `examples`. |
+| `test`       | `go test -race ./...`. |
 | `cover`      | Same as `test` with a coverage profile in `coverage.out`. Fails if total coverage is below `COVER_MIN` (85). |
 | `lint`       | `golangci-lint run` with `.golangci.yml`. |
 | `vuln`       | `govulncheck ./...`. |

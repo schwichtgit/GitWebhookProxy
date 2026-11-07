@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stakater/GitWebhookProxy/pkg/assets"
+	"github.com/schwichtgit/GitWebhookProxy/pkg/assets"
 )
 
 // serveAssets serves static assets from the embedded filesystem

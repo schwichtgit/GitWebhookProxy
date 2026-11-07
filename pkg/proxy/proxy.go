@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/stakater/GitWebhookProxy/pkg/parser"
-	"github.com/stakater/GitWebhookProxy/pkg/providers"
-	"github.com/stakater/GitWebhookProxy/pkg/utils"
+	"github.com/schwichtgit/GitWebhookProxy/pkg/parser"
+	"github.com/schwichtgit/GitWebhookProxy/pkg/providers"
+	"github.com/schwichtgit/GitWebhookProxy/pkg/utils"
 )
 
 var (

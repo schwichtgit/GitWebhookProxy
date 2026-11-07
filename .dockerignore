@@ -9,7 +9,6 @@ build
 deployments
 docs
 dist
-examples
 *.md
 coverage.out
 gitwebhookproxy

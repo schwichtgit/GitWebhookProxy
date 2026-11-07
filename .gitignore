@@ -12,3 +12,6 @@
 .idea/
 *.iml
 .vscode/
+
+# Local Claude Code state
+.claude/

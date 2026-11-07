@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/schwichtgit/GitWebhookProxy/pkg/proxy"
 	"github.com/spf13/pflag"
-	"github.com/stakater/GitWebhookProxy/pkg/proxy"
 )
 
 func TestParseConfig(t *testing.T) {

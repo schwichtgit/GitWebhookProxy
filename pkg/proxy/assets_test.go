@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stakater/GitWebhookProxy/pkg/assets"
+	"github.com/schwichtgit/GitWebhookProxy/pkg/assets"
 )
 
 func TestProxy_serveAssets(t *testing.T) {

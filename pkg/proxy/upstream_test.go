@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stakater/GitWebhookProxy/pkg/providers"
+	"github.com/schwichtgit/GitWebhookProxy/pkg/providers"
 )
 
 type recordedRequest struct {

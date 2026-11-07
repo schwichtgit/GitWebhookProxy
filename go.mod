@@ -1,4 +1,4 @@
-module github.com/stakater/GitWebhookProxy
+module github.com/schwichtgit/GitWebhookProxy
 
 go 1.27.3
 

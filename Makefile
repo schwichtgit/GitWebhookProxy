@@ -13,7 +13,7 @@ GOPROXY    ?=
 LDFLAGS    ?= -s -w -X main.version=$(VERSION)
 
 COVER_MIN  ?= 85
-PACKAGES   ?= $(shell $(GO) list ./... | grep -v /examples)
+PACKAGES   ?= ./...
 
 DOCKERFILE ?= build/package/Dockerfile
 # Single platform by default so the image can be loaded locally.
@@ -35,7 +35,6 @@ export GOFIPS140
 .DEFAULT_GOAL := help
 
 .PHONY: help build test cover lint vuln fmt tidy-check image docker image-scan helm-lint clean
-
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target> [VAR=value]\n\nTargets:\n"} \
 		/^[a-zA-Z_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jarcoal/httpmock"
-	"github.com/stakater/GitWebhookProxy/pkg/providers"
+	"github.com/schwichtgit/GitWebhookProxy/pkg/providers"
 )
 
 const (
