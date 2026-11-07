@@ -1,0 +1,13 @@
+# Markdown lint settings. Formatting is done by prettier; tables and code
+# blocks cannot be wrapped, so the line length limit applies to prose only.
+config:
+  default: true
+  MD013:
+    line_length: 80
+    tables: false
+    code_blocks: false
+globs:
+  - "**/*.md"
+ignores:
+  - ".claude/**"
+  - "dist/**"

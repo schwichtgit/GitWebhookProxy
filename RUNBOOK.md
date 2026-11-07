@@ -14,15 +14,15 @@ DEPLOY=gwp-gitwebhookproxy   # <release>-gitwebhookproxy unless fullnameOverride
 
 ## Service summary
 
-| Item | Value |
-| --- | --- |
-| Purpose | Validate GitHub/GitLab webhooks and forward them to an upstream (usually Jenkins) |
-| Inbound | `POST /<path>` from GitHub/GitLab, `GET /health` from probes |
-| Outbound | HTTP(S) to `config.upstreamURL` only |
-| State | None. Pods can be deleted or rescheduled at any time. |
-| Port | Container 8080, Service 80 |
-| Runs as | uid/gid 65532, read-only root filesystem, no capabilities, no shell |
-| Secrets | Webhook secret in a Kubernetes Secret (`secret.existingSecret`, key `secret`) |
+| Item     | Value                                                                             |
+| -------- | --------------------------------------------------------------------------------- |
+| Purpose  | Validate GitHub/GitLab webhooks and forward them to an upstream (usually Jenkins) |
+| Inbound  | `POST /<path>` from GitHub/GitLab, `GET /health` from probes                      |
+| Outbound | HTTP(S) to `config.upstreamURL` only                                              |
+| State    | None. Pods can be deleted or rescheduled at any time.                             |
+| Port     | Container 8080, Service 80                                                        |
+| Runs as  | uid/gid 65532, read-only root filesystem, no capabilities, no shell               |
+| Secrets  | Webhook secret in a Kubernetes Secret (`secret.existingSecret`, key `secret`)     |
 
 Impact of an outage: webhook deliveries fail and CI jobs are not triggered.
 GitHub and GitLab do not retry automatically; failed deliveries can be
@@ -57,16 +57,16 @@ Webhooks > Edit > Recent events.
 
 ## Responses and log lines
 
-| Response to sender | Log line | Meaning | Action |
-| --- | --- | --- | --- |
-| `200` upstream body | `Redirected incoming request ... with Response: '200 OK'` | Forwarded | None |
-| `200 Ignoring request for user: X` | `Ignoring request for user: "X"` | Sender is in `ignoredUsers`, not in `allowedUser`, or empty (GitHub event without sender) | Expected for filtered users. If unexpected, check `config.ignoredUsers` / `config.allowedUsers` |
-| `400 Error validating Hook` | `Error Validating Hook` | Signature/token does not match, or missing | See [Validation failures](#validation-failures) |
-| `400 Error parsing Hook: Required header ...` | `Error Parsing Hook: ...` | Provider headers missing. Usually the wrong `config.provider`, or a request that is not a webhook | Check provider setting and sender |
-| `403 Not allowed to proxy path` | `Not allowed to proxy path: "..."` | Path not in `allowedPaths` | Fix the webhook URL or `config.allowedPaths` |
-| `405` | none | Not a `POST` | Webhook must use `POST` |
-| `502 Error forwarding request to upstream` | `Error Redirecting ... to upstream ...: <error>` | Upstream unreachable, DNS failure, TLS failure | See [Upstream failures](#upstream-failures) |
-| `4xx/5xx Upstream returned status: ...` | `Error Redirecting ..., Upstream Redirect Status: ...` | Upstream answered with an error | Check upstream logs (for Jenkins: the plugin endpoint and its own token/secret settings) |
+| Response to sender                            | Log line                                                  | Meaning                                                                                           | Action                                                                                          |
+| --------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `200` upstream body                           | `Redirected incoming request ... with Response: '200 OK'` | Forwarded                                                                                         | None                                                                                            |
+| `200 Ignoring request for user: X`            | `Ignoring request for user: "X"`                          | Sender is in `ignoredUsers`, not in `allowedUser`, or empty (GitHub event without sender)         | Expected for filtered users. If unexpected, check `config.ignoredUsers` / `config.allowedUsers` |
+| `400 Error validating Hook`                   | `Error Validating Hook`                                   | Signature/token does not match, or missing                                                        | See [Validation failures](#validation-failures)                                                 |
+| `400 Error parsing Hook: Required header ...` | `Error Parsing Hook: ...`                                 | Provider headers missing. Usually the wrong `config.provider`, or a request that is not a webhook | Check provider setting and sender                                                               |
+| `403 Not allowed to proxy path`               | `Not allowed to proxy path: "..."`                        | Path not in `allowedPaths`                                                                        | Fix the webhook URL or `config.allowedPaths`                                                    |
+| `405`                                         | none                                                      | Not a `POST`                                                                                      | Webhook must use `POST`                                                                         |
+| `502 Error forwarding request to upstream`    | `Error Redirecting ... to upstream ...: <error>`          | Upstream unreachable, DNS failure, TLS failure                                                    | See [Upstream failures](#upstream-failures)                                                     |
+| `4xx/5xx Upstream returned status: ...`       | `Error Redirecting ..., Upstream Redirect Status: ...`    | Upstream answered with an error                                                                   | Check upstream logs (for Jenkins: the plugin endpoint and its own token/secret settings)        |
 
 ## Validation failures
 
@@ -129,6 +129,7 @@ helm -n $NS test $REL
   Webhooks fail during the gap; redeliver them afterwards. Alternatively
   install 0.3.0 under a new release name, switch the Ingress or DNS, then
   uninstall the old release.
+
 - Keep at least two replicas and `podDisruptionBudget.enabled=true` if node
   drains must not drop webhooks.
 

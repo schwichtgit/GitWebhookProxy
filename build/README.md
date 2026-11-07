@@ -18,34 +18,34 @@ into the binary with `-X main.version=...` and printed at startup.
 
 ## Make targets
 
-| Target       | What it does |
-|--------------|--------------|
-| `build`      | Builds `./gitwebhookproxy` with `CGO_ENABLED=0` and `-trimpath`. |
-| `test`       | `go test -race ./...`. |
+| Target       | What it does                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `build`      | Builds `./gitwebhookproxy` with `CGO_ENABLED=0` and `-trimpath`.                                             |
+| `test`       | `go test -race ./...`.                                                                                       |
 | `cover`      | Same as `test` with a coverage profile in `coverage.out`. Fails if total coverage is below `COVER_MIN` (85). |
-| `lint`       | `golangci-lint run` with `.golangci.yml`. |
-| `vuln`       | `govulncheck ./...`. |
-| `fmt`        | `go fmt ./...`. |
-| `tidy-check` | Fails if `go mod tidy` would change `go.mod` or `go.sum`. |
-| `image`      | Builds the container image. Alias: `docker`. |
-| `image-scan` | `trivy image`, fails on fixable HIGH or CRITICAL findings. |
-| `helm-lint`  | `helm lint --strict` and `helm template` of the chart, including each `ci/*-values.yaml`. |
-| `clean`      | Removes the binary, `coverage.out` and `dist/`. |
+| `lint`       | `golangci-lint run` with `.golangci.yml`.                                                                    |
+| `vuln`       | `govulncheck ./...`.                                                                                         |
+| `fmt`        | `go fmt ./...`.                                                                                              |
+| `tidy-check` | Fails if `go mod tidy` would change `go.mod` or `go.sum`.                                                    |
+| `image`      | Builds the container image. Alias: `docker`.                                                                 |
+| `image-scan` | `trivy image`, fails on fixable HIGH or CRITICAL findings.                                                   |
+| `helm-lint`  | `helm lint --strict` and `helm template` of the chart, including each `ci/*-values.yaml`.                    |
+| `clean`      | Removes the binary, `coverage.out` and `dist/`.                                                              |
 
 Variables can be overridden on the command line, for example
 `make image IMAGE=registry.example.com/gwp VERSION=v1.2.3`.
 
-| Variable        | Default |
-|-----------------|---------|
-| `VERSION`       | `git describe --tags --always --dirty` |
-| `IMAGE`         | `ghcr.io/schwichtgit/gitwebhookproxy` |
-| `IMAGE_TAG`     | `VERSION` with `+` replaced by `_` |
-| `PLATFORMS`     | `linux/<host arch>` |
-| `PUSH`          | `0`; set to `1` to push the image |
+| Variable        | Default                                      |
+| --------------- | -------------------------------------------- |
+| `VERSION`       | `git describe --tags --always --dirty`       |
+| `IMAGE`         | `ghcr.io/schwichtgit/gitwebhookproxy`        |
+| `IMAGE_TAG`     | `VERSION` with `+` replaced by `_`           |
+| `PLATFORMS`     | `linux/<host arch>`                          |
+| `PUSH`          | `0`; set to `1` to push the image            |
 | `CONTAINER_CLI` | `docker` if buildx works, otherwise `podman` |
-| `GOFIPS140`     | `v1.0.0` |
-| `GOPROXY`       | empty (Go default) |
-| `COVER_MIN`     | `85` |
+| `GOFIPS140`     | `v1.0.0`                                     |
+| `GOPROXY`       | empty (Go default)                           |
+| `COVER_MIN`     | `85`                                         |
 
 ## Container image
 

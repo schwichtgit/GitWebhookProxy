@@ -43,16 +43,16 @@ For every `POST`, in this order:
 Every flag can also be set as an environment variable with the `GWP_` prefix.
 Flags win over environment variables.
 
-| Flag | Environment variable | Default | Description |
-| --- | --- | --- | --- |
-| `--upstreamURL` | `GWP_UPSTREAMURL` | (required) | Base URL that accepted webhooks are forwarded to. |
-| `--provider` | `GWP_PROVIDER` | `github` | `github` or `gitlab`. |
-| `--secret` | `GWP_SECRET` | `""` | Webhook secret (GitHub) or token (GitLab). If empty, requests are not validated. |
-| `--allowedPaths` | `GWP_ALLOWEDPATHS` | `""` (all) | Comma-separated paths. `/a` allows `/a` and `/a/...`, not `/ab`. |
-| `--ignoredUsers` | `GWP_IGNOREDUSERS` | `""` | Comma-separated senders to drop. |
-| `--allowedUser` | `GWP_ALLOWEDUSER` | `""` (all) | Comma-separated senders to accept; everyone else is dropped. |
-| `--listen` | `GWP_LISTEN` | `:8080` | Listen address. |
-| `--insecureSkipVerify` | `GWP_INSECURESKIPVERIFY` | `false` | Skip TLS verification of the upstream. Only for trusted upstreams with self-signed certificates. |
+| Flag                   | Environment variable     | Default    | Description                                                                                      |
+| ---------------------- | ------------------------ | ---------- | ------------------------------------------------------------------------------------------------ |
+| `--upstreamURL`        | `GWP_UPSTREAMURL`        | (required) | Base URL that accepted webhooks are forwarded to.                                                |
+| `--provider`           | `GWP_PROVIDER`           | `github`   | `github` or `gitlab`.                                                                            |
+| `--secret`             | `GWP_SECRET`             | `""`       | Webhook secret (GitHub) or token (GitLab). If empty, requests are not validated.                 |
+| `--allowedPaths`       | `GWP_ALLOWEDPATHS`       | `""` (all) | Comma-separated paths. `/a` allows `/a` and `/a/...`, not `/ab`.                                 |
+| `--ignoredUsers`       | `GWP_IGNOREDUSERS`       | `""`       | Comma-separated senders to drop.                                                                 |
+| `--allowedUser`        | `GWP_ALLOWEDUSER`        | `""` (all) | Comma-separated senders to accept; everyone else is dropped.                                     |
+| `--listen`             | `GWP_LISTEN`             | `:8080`    | Listen address.                                                                                  |
+| `--insecureSkipVerify` | `GWP_INSECURESKIPVERIFY` | `false`    | Skip TLS verification of the upstream. Only for trusted upstreams with self-signed certificates. |
 
 Run the proxy without a secret only behind another layer that authenticates
 the sender.
@@ -141,11 +141,12 @@ cosign verify --certificate-identity "$ID" --certificate-oidc-issuer "$ISSUER" \
 ## FIPS 140-3
 
 Release binaries, the container image and `make build` are built with
-`GOFIPS140=v1.0.0`, the CMVP-validated Go Cryptographic Module
-(certificate #5247). The binary runs in FIPS 140-3 mode without further settings and logs
+`GOFIPS140=v1.0.0`. This selects Go Cryptographic Module v1.0.0, which is
+CMVP-validated under certificate 5247. The binary runs in FIPS 140-3 mode
+without further settings and logs
 `FIPS 140-3 mode enabled (Go Cryptographic Module v1.0.0)` at startup. In this
-mode `crypto/tls` negotiates only approved protocol versions, cipher suites and
-key exchanges. Build with `GOFIPS140=off` to turn it off. See
+mode `crypto/tls` negotiates only approved protocol versions, cipher suites
+and key exchanges. Build with `GOFIPS140=off` to turn it off. See
 <https://go.dev/doc/security/fips140>.
 
 ## Development
