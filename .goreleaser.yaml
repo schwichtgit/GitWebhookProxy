@@ -39,6 +39,21 @@ archives:
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
 
+# SPDX SBOM per archive, generated with syft.
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.spdx.json"
+    args: ["$artifact", "--output", "spdx-json=$document"]
+
+# Keyless cosign signature over the checksums file. The checksums cover the
+# archives and the SBOMs, so verifying this one bundle verifies all of them.
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
