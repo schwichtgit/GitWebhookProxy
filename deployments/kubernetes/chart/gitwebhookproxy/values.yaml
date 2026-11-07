@@ -178,3 +178,21 @@ gke:
     redirectToHttps:
       enabled: false
       responseCodeName: MOVED_PERMANENTLY_DEFAULT
+
+# Kyverno image verification. Creates a namespaced Kyverno Policy that admits
+# the proxy image only when it carries a keyless cosign signature from the
+# release workflow of this repository. Requires Kyverno >= 1.18 in the cluster.
+kyverno:
+  enabled: false
+  # Audit reports violations; Enforce blocks the Pod.
+  failureAction: Audit
+  # Rewrite the image reference to the verified digest.
+  mutateDigest: true
+  # Also require the signed SPDX SBOM attestation.
+  verifySBOM: true
+  webhookTimeoutSeconds: 30
+  keyless:
+    issuer: https://token.actions.githubusercontent.com
+    # Certificate identity of the release workflow on a v* tag.
+    subjectRegExp: ^https://github\.com/schwichtgit/GitWebhookProxy/\.github/workflows/release\.yml@refs/tags/v[0-9].*$
+    rekorURL: https://rekor.sigstore.dev

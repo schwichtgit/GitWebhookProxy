@@ -125,6 +125,14 @@ annotations. Changes to an existing Secret referenced with
 | `gke.frontendConfig.sslPolicy` | string | `""` | Name of an existing GCP SSL policy. |
 | `gke.frontendConfig.redirectToHttps.enabled` | bool | `false` | Redirect HTTP to HTTPS at the load balancer. |
 | `gke.frontendConfig.redirectToHttps.responseCodeName` | string | `MOVED_PERMANENTLY_DEFAULT` | Redirect response code. |
+| `kyverno.enabled` | bool | `false` | Create a namespaced Kyverno Policy that verifies the image signature. |
+| `kyverno.failureAction` | string | `Audit` | `Audit` reports violations, `Enforce` blocks the Pod. |
+| `kyverno.mutateDigest` | bool | `true` | Rewrite the image reference to the verified digest. |
+| `kyverno.verifySBOM` | bool | `true` | Also require the signed SPDX SBOM attestation. |
+| `kyverno.webhookTimeoutSeconds` | int | `30` | Admission webhook timeout (1-30). |
+| `kyverno.keyless.issuer` | string | `https://token.actions.githubusercontent.com` | OIDC issuer of the signing certificate. |
+| `kyverno.keyless.subjectRegExp` | string | release workflow on `v*` tags | Certificate identity of the release workflow. |
+| `kyverno.keyless.rekorURL` | string | `https://rekor.sigstore.dev` | Rekor transparency log. |
 
 ## GKE Ingress
 
@@ -157,6 +165,36 @@ gke:
 
 The BackendConfig health check points to `/health` on the container port, so
 the load balancer does not fall back to `GET /`.
+
+## Image verification with Kyverno
+
+Release images are signed keyless with cosign by the release workflow, and
+each platform image carries a signed SPDX SBOM attestation. With
+`kyverno.enabled=true` the chart creates a namespaced Kyverno `Policy` that
+checks both before a Pod starts:
+
+- the signature must come from
+  `https://github.com/schwichtgit/GitWebhookProxy/.github/workflows/release.yml`
+  on a `v*` tag, issued by `https://token.actions.githubusercontent.com`, and be
+  recorded in Rekor
+- the SPDX SBOM attestation must be signed by the same identity
+- the image reference is rewritten to the verified digest (`mutateDigest`)
+
+Requirements and notes:
+
+- Kyverno 1.18 or later. The policy uses `verifyImages` with
+  `type: SigstoreBundle`, which reads the bundle format that cosign v3 writes.
+  The older `Cosign` verifier type does not see these signatures.
+- Start with `failureAction: Audit`, check the policy reports
+  (`kubectl get policyreport -n <namespace>`), then switch to `Enforce`.
+- Some Kyverno versions have reported problems verifying cosign v3
+  attestations. If the SBOM check fails while the signature check passes, set
+  `kyverno.verifySBOM=false` and verify SBOMs with `cosign verify-attestation`
+  instead.
+- The policy only matches this chart's image repository. Cluster-wide Pod
+  Security is left to Pod Security Admission or a platform-level policy set;
+  the chart already meets the restricted profile, and CI checks it against
+  Kyverno's baseline and restricted policies.
 
 ## Pod Security
 

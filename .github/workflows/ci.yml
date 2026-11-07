@@ -91,6 +91,27 @@ jobs:
             echo "No chart tests found, skipping."
           fi
 
+      - uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
+        with:
+          release: v1.19.2
+
+      # Check every rendered values set against Kyverno's Pod Security
+      # baseline and restricted policies (kyverno/policies release-1.19).
+      - name: Kyverno Pod Security checks
+        env:
+          POLICIES_REF: 282e77f6d54e1e1a636190ff2dacc3d02c2d689c
+        run: |
+          git clone --quiet https://github.com/kyverno/policies.git "$RUNNER_TEMP/kyverno-policies"
+          git -C "$RUNNER_TEMP/kyverno-policies" checkout --quiet "$POLICIES_REF"
+          kubectl kustomize "$RUNNER_TEMP/kyverno-policies/pod-security/baseline" > "$RUNNER_TEMP/pss.yaml"
+          echo "---" >> "$RUNNER_TEMP/pss.yaml"
+          kubectl kustomize "$RUNNER_TEMP/kyverno-policies/pod-security/restricted" >> "$RUNNER_TEMP/pss.yaml"
+          for f in "$CHART_DIR"/ci/*-values.yaml; do
+            echo "values $f"
+            helm template gitwebhookproxy "$CHART_DIR" -f "$f" > "$RUNNER_TEMP/rendered.yaml"
+            kyverno apply "$RUNNER_TEMP/pss.yaml" --resource "$RUNNER_TEMP/rendered.yaml" --remove-color
+          done
+
   image:
     runs-on: ubuntu-latest
     steps:

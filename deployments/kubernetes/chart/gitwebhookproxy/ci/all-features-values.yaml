@@ -87,3 +87,7 @@ gke:
     sslPolicy: modern-ssl-policy
     redirectToHttps:
       enabled: true
+
+kyverno:
+  enabled: true
+  failureAction: Enforce
