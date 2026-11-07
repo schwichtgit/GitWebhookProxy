@@ -1,22 +1,15 @@
+{{- include "gitwebhookproxy.validate" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  annotations:
+  name: {{ include "gitwebhookproxy.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-{{ include "gitwebhookproxy.labels.stakater" . | indent 4 }}
-{{ include "gitwebhookproxy.labels.chart" . | indent 4 }}
-{{- if .Values.gitWebhookProxy.useCustomName }}
-  name: {{ .Values.gitWebhookProxy.customName }}
-{{- else }}
-  name: {{ template "gitwebhookproxy.name" . }}
-{{- end }}
+    {{- include "gitwebhookproxy.labels" . | nindent 4 }}
 data:
-    {{- with .Values.gitWebhookProxy.config.provider }}
-    provider: {{ . }}
-    {{- end }}
-    upstreamURL: {{ .Values.gitWebhookProxy.config.upstreamURL }}
-    {{- with .Values.gitWebhookProxy.config.allowedPaths }}
-    allowedPaths: {{ . }}
-    {{- end }}
-    ignoredUsers: {{ .Values.gitWebhookProxy.config.ignoredUsers | default "" | quote }}
-    allowedUsers: {{ .Values.gitWebhookProxy.config.allowedUsers | default "" | quote }}
+  GWP_PROVIDER: {{ .Values.config.provider | quote }}
+  GWP_UPSTREAMURL: {{ .Values.config.upstreamURL | quote }}
+  GWP_ALLOWEDPATHS: {{ .Values.config.allowedPaths | quote }}
+  GWP_IGNOREDUSERS: {{ .Values.config.ignoredUsers | quote }}
+  GWP_ALLOWEDUSER: {{ .Values.config.allowedUsers | quote }}
+  GWP_INSECURESKIPVERIFY: {{ .Values.config.insecureSkipVerify | toString | quote }}

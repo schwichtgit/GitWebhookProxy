@@ -1,0 +1,187 @@
+suite: deployment
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+  - templates/secret.yaml
+release:
+  name: gwp
+  namespace: default
+set:
+  config.upstreamURL: http://jenkins.example.svc:8080
+tests:
+  - it: fails without config.upstreamURL
+    set:
+      config.upstreamURL: ""
+    template: templates/deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "config.upstreamURL is required"
+
+  - it: fails when secret.value and secret.existingSecret are both set
+    set:
+      secret.value: abc
+      secret.existingSecret: other
+    template: templates/deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "mutually exclusive"
+
+  - it: renders hardened defaults
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: gitwebhookproxy
+            app.kubernetes.io/instance: gwp
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^ghcr\.io/schwichtgit/gitwebhookproxy:v
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value: [ALL]
+      - exists:
+          path: spec.template.spec.containers[0].resources.limits.memory
+      - notExists:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+      - notExists:
+          path: spec.template.spec.containers[0].env
+
+  - it: uses the image tag and digest overrides
+    template: templates/deployment.yaml
+    set:
+      image.tag: v1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/schwichtgit/gitwebhookproxy:v1.2.3
+
+  - it: prefers the digest over the tag
+    template: templates/deployment.yaml
+    set:
+      image.digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/schwichtgit/gitwebhookproxy@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  - it: renders config as GWP_* variables
+    template: templates/configmap.yaml
+    set:
+      config.provider: gitlab
+      config.allowedUsers: alice,bob
+      config.insecureSkipVerify: true
+    asserts:
+      - equal:
+          path: data.GWP_PROVIDER
+          value: gitlab
+      - equal:
+          path: data.GWP_UPSTREAMURL
+          value: http://jenkins.example.svc:8080
+      - equal:
+          path: data.GWP_ALLOWEDUSER
+          value: alice,bob
+      - equal:
+          path: data.GWP_INSECURESKIPVERIFY
+          value: "true"
+      - notExists:
+          path: data.GWP_SECRET
+
+  - it: creates a Secret from secret.value
+    set:
+      secret.value: s3cr3t
+    asserts:
+      - template: templates/secret.yaml
+        hasDocuments:
+          count: 1
+      - template: templates/secret.yaml
+        equal:
+          path: data.secret
+          value: czNjcjN0
+      - template: templates/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GWP_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: gwp-gitwebhookproxy
+                key: secret
+      - template: templates/deployment.yaml
+        exists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+
+  - it: references an existing Secret
+    set:
+      secret.existingSecret: webhook-secret
+      secret.existingSecretKey: token
+    asserts:
+      - template: templates/secret.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GWP_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: webhook-secret
+                key: token
+      - template: templates/deployment.yaml
+        notExists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+
+  - it: omits replicas when autoscaling is enabled
+    template: templates/deployment.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: appends extraEnv
+    template: templates/deployment.yaml
+    set:
+      extraEnv:
+        - name: GODEBUG
+          value: fips140=on
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GODEBUG
+            value: fips140=on

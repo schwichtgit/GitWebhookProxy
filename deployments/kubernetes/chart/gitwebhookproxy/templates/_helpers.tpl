@@ -1,49 +1,122 @@
-{{/* vim: set filetype=mustache: */}}
 {{/*
-Expand the name of the chart.
+Chart name.
 */}}
 {{- define "gitwebhookproxy.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" | lower -}}
-{{- end -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
 
 {{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+Fully qualified app name, truncated to 63 characters.
 */}}
 {{- define "gitwebhookproxy.fullname" -}}
-{{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{- define "gitwebhookproxy.labels.selector" -}}
-{{- if .Values.gitWebhookProxy.useCustomName -}}
-app: {{ .Values.gitWebhookProxy.customName }}
-{{- else -}}
-app: {{ template "gitwebhookproxy.name" . }}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
 {{- end }}
-group: {{ .Values.gitWebhookProxy.labels.group }}
-provider: {{ .Values.gitWebhookProxy.labels.provider }}
-{{- end -}}
-
-{{- define "gitwebhookproxy.labels.stakater" -}}
-{{ template "gitwebhookproxy.labels.selector" . }}
-version: {{ .Values.gitWebhookProxy.labels.version }}
-{{- end -}}
-
-{{- define "gitwebhookproxy.labels.chart" -}}
-chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-release: {{ .Release.Name | quote }}
-heritage: {{ .Release.Service | quote }}
-{{- end -}}
+{{- end }}
+{{- end }}
 
 {{/*
-Return the appropriate apiVersion for deployment.
+Chart name and version for the helm.sh/chart label.
 */}}
-{{- define "deployment.apiVersion" -}}
-{{- if semverCompare ">=1.9-0" .Capabilities.KubeVersion.GitVersion -}}
-{{- print "apps/v1" -}}
-{{- else -}}
+{{- define "gitwebhookproxy.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
 
-{{- print "networking.k8s.io/v1" -}}
-{{- end -}}
-{{- end -}}
+{{/*
+Common labels.
+*/}}
+{{- define "gitwebhookproxy.labels" -}}
+helm.sh/chart: {{ include "gitwebhookproxy.chart" . }}
+{{ include "gitwebhookproxy.selectorLabels" . }}
+app.kubernetes.io/version: {{ include "gitwebhookproxy.imageTag" . | trunc 63 | trimSuffix "-" | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels. These must not change between releases.
+*/}}
+{{- define "gitwebhookproxy.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "gitwebhookproxy.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+ServiceAccount name.
+*/}}
+{{- define "gitwebhookproxy.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "gitwebhookproxy.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Image tag. Defaults to "v" + appVersion.
+*/}}
+{{- define "gitwebhookproxy.imageTag" -}}
+{{- default (printf "v%s" .Chart.AppVersion) .Values.image.tag }}
+{{- end }}
+
+{{/*
+Full image reference. A digest takes precedence over the tag.
+*/}}
+{{- define "gitwebhookproxy.image" -}}
+{{- if .Values.image.digest }}
+{{- printf "%s@%s" .Values.image.repository .Values.image.digest }}
+{{- else }}
+{{- printf "%s:%s" .Values.image.repository (include "gitwebhookproxy.imageTag" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Name of the Secret that holds the webhook secret, empty if none is configured.
+*/}}
+{{- define "gitwebhookproxy.secretName" -}}
+{{- if .Values.secret.existingSecret }}
+{{- .Values.secret.existingSecret }}
+{{- else if .Values.secret.value }}
+{{- include "gitwebhookproxy.fullname" . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Key inside the webhook Secret.
+*/}}
+{{- define "gitwebhookproxy.secretKey" -}}
+{{- if .Values.secret.existingSecret }}
+{{- default "secret" .Values.secret.existingSecretKey }}
+{{- else }}
+{{- print "secret" }}
+{{- end }}
+{{- end }}
+
+{{/*
+GKE resource names.
+*/}}
+{{- define "gitwebhookproxy.backendConfigName" -}}
+{{- default (printf "%s-backend" (include "gitwebhookproxy.fullname" .)) .Values.gke.backendConfig.name }}
+{{- end }}
+
+{{- define "gitwebhookproxy.frontendConfigName" -}}
+{{- default (printf "%s-frontend" (include "gitwebhookproxy.fullname" .)) .Values.gke.frontendConfig.name }}
+{{- end }}
+
+{{/*
+Input validation.
+*/}}
+{{- define "gitwebhookproxy.validate" -}}
+{{- $_ := required "config.upstreamURL is required: set it to the URL that validated webhooks are forwarded to" .Values.config.upstreamURL }}
+{{- if and .Values.secret.value .Values.secret.existingSecret }}
+{{- fail "secret.value and secret.existingSecret are mutually exclusive: set only one" }}
+{{- end }}
+{{- if and .Values.gke.frontendConfig.enabled (not .Values.ingress.enabled) }}
+{{- fail "gke.frontendConfig.enabled requires ingress.enabled=true" }}
+{{- end }}
+{{- end }}

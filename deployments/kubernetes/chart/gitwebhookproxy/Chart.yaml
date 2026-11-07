@@ -1,13 +1,16 @@
-# Generated from /kubernetes/templates/chart/Chart.yaml.tmpl
-
 apiVersion: v2
 name: gitwebhookproxy
-description: GitWebhookProxy chart that runs on kubernetes
-version: v0.2.81
+description: Proxy that validates GitHub and GitLab webhooks and forwards them to an upstream URL
+type: application
+# version and appVersion are overridden from the git tag by the release workflow.
+version: 0.3.0
+appVersion: "0.3.0"
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/schwichtgit/GitWebhookProxy
+sources:
+  - https://github.com/schwichtgit/GitWebhookProxy
 keywords:
-  - GitWebhookProxy
-  - kubernetes
-home: https://github.com/stakater/GitWebhookProxy
-maintainers:
-- name: Stakater
-  email: stakater@aurorasolutions.io
+  - webhook
+  - github
+  - gitlab
+  - proxy

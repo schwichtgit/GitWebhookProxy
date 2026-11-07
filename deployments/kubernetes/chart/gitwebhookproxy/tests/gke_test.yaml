@@ -1,0 +1,81 @@
+suite: gke
+templates:
+  - templates/backendconfig.yaml
+  - templates/frontendconfig.yaml
+  - templates/service.yaml
+release:
+  name: gwp
+  namespace: default
+set:
+  config.upstreamURL: http://jenkins.example.svc:8080
+tests:
+  - it: renders no GKE resources by default
+    asserts:
+      - template: templates/backendconfig.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/frontendconfig.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/service.yaml
+        notExists:
+          path: metadata.annotations
+
+  - it: renders the BackendConfig and Service annotation
+    set:
+      gke.backendConfig.enabled: true
+    asserts:
+      - template: templates/backendconfig.yaml
+        isKind:
+          of: BackendConfig
+      - template: templates/backendconfig.yaml
+        equal:
+          path: metadata.name
+          value: gwp-gitwebhookproxy-backend
+      - template: templates/backendconfig.yaml
+        equal:
+          path: spec.healthCheck.requestPath
+          value: /health
+      - template: templates/backendconfig.yaml
+        equal:
+          path: spec.healthCheck.port
+          value: 8080
+      - template: templates/service.yaml
+        equal:
+          path: metadata.annotations["cloud.google.com/backend-config"]
+          value: '{"default": "gwp-gitwebhookproxy-backend"}'
+
+  - it: uses a custom BackendConfig name
+    set:
+      gke.backendConfig.enabled: true
+      gke.backendConfig.name: my-backend
+    asserts:
+      - template: templates/backendconfig.yaml
+        equal:
+          path: metadata.name
+          value: my-backend
+      - template: templates/service.yaml
+        equal:
+          path: metadata.annotations["cloud.google.com/backend-config"]
+          value: '{"default": "my-backend"}'
+
+  - it: renders the FrontendConfig with ingress
+    set:
+      ingress.enabled: true
+      gke.frontendConfig.enabled: true
+      gke.frontendConfig.sslPolicy: modern-ssl-policy
+      gke.frontendConfig.redirectToHttps.enabled: true
+    asserts:
+      - template: templates/frontendconfig.yaml
+        isKind:
+          of: FrontendConfig
+      - template: templates/frontendconfig.yaml
+        equal:
+          path: spec.sslPolicy
+          value: modern-ssl-policy
+      - template: templates/frontendconfig.yaml
+        equal:
+          path: spec.redirectToHttps
+          value:
+            enabled: true
+            responseCodeName: MOVED_PERMANENTLY_DEFAULT

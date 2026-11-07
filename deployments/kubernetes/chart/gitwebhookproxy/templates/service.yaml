@@ -1,36 +1,25 @@
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-{{- if and .Values.gitWebhookProxy.ingress.enabled .Values.gitWebhookProxy.ingress.gcp.enabled .Values.gitWebhookProxy.ingress.gcp.backend.enabled }}
-    {{- if .Values.gitWebhookProxy.ingress.gcp.backend.name }}
-    cloud.google.com/backend-config: '{"default": "{{ .Values.gitWebhookProxy.ingress.gcp.backend.name }}"}'
-    {{- else if .Values.gitWebhookProxy.useCustomName }}
-    cloud.google.com/backend-config: '{"default": "{{ .Values.gitWebhookProxy.customName }}-backend"}'
-    {{- else }}
-    cloud.google.com/backend-config: '{"default": "{{ template "gitwebhookproxy.name" . }}-backend"}'
-    {{- end }}
-{{- end }}
-{{- if .Values.gitWebhookProxy.service.annotations }}
-{{ toYaml .Values.gitWebhookProxy.service.annotations | indent 4 }}
-{{- end }}
+  name: {{ include "gitwebhookproxy.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-{{ include "gitwebhookproxy.labels.stakater" . | indent 4 }}
-{{ include "gitwebhookproxy.labels.chart" . | indent 4 }}
-{{- if .Values.gitWebhookProxy.service.labels }}
-{{ toYaml .Values.gitWebhookProxy.service.labels | indent 4 }}
-{{- end }}
-{{- if .Values.gitWebhookProxy.useCustomName }}
-  name: {{ .Values.gitWebhookProxy.customName }}
-{{- else }}
-  name: {{ template "gitwebhookproxy.name" . }}
-{{- end }}
+    {{- include "gitwebhookproxy.labels" . | nindent 4 }}
+  {{- if or .Values.service.annotations .Values.gke.backendConfig.enabled }}
+  annotations:
+    {{- if .Values.gke.backendConfig.enabled }}
+    cloud.google.com/backend-config: {{ printf "{\"default\": \"%s\"}" (include "gitwebhookproxy.backendConfigName" .) | quote }}
+    {{- end }}
+    {{- with .Values.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
 spec:
-  type: NodePort
+  type: {{ .Values.service.type }}
   ports:
-  - name: http
-    port: {{ .Values.gitWebhookProxy.service.ports.servicePort }}
-    protocol: TCP
-    targetPort: {{ .Values.gitWebhookProxy.service.ports.targetPort }}
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
   selector:
-{{ include "gitwebhookproxy.labels.selector" . | indent 4 }}
+    {{- include "gitwebhookproxy.selectorLabels" . | nindent 4 }}

@@ -1,107 +1,180 @@
-# Generated from /kubernetes/templates/chart/values.yaml.tmpl
+# Default values for gitwebhookproxy.
 
-kubernetes:
+replicaCount: 1
 
-gitWebhookProxy:
-  replicas: 1
-  useCustomName: false
-  customName: gitlabwebhookproxy
-  # name of existing secret containing secret for hashes
-  existingSecretName: ""
-  labels:
-    provider: stakater
-    group: com.stakater.platform
-    version: v0.2.80
-  image:
-    name: stakater/gitwebhookproxy
-    tag: "v0.2.80"
-    pullPolicy: IfNotPresent
-  # Resource limits and requests
-  resources:
-    limits:
-      cpu: "200m"
-      memory: "256Mi"
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-  config:
-    # Provider configuration with defaults
-    # Supported values: github, gitlab, bitbucket
-    provider: github
-    # Upstream service URL to forward webhooks to
-    upstreamURL: "https://jenkins.tools.stackator.com"
-    # Comma-separated list of allowed webhook paths
-    allowedPaths: "/github-webhook,/project"
-    # Secret for webhook validation
-    secret: ""
-    # User filtering configuration
-    ignoredUsers: "stakater-user"
-    allowedUsers: "myuser"
-  service:
-    labels:
-      expose: "true"
-    annotations: {}
-    ports:
-      name: http
-      port: 8080
-      protocol: TCP
-      targetPort: 8080
-      servicePort: 80
-  securityContext:
-    readOnlyRootFilesystem: true
-    allowPrivilegeEscalation: false
-  podSecurityContext:
-    runAsUser: 1001
-    runAsNonRoot: true
-  ingress:
+image:
+  repository: ghcr.io/schwichtgit/gitwebhookproxy
+  # Defaults to "v" + the chart appVersion.
+  tag: ""
+  # Optional image digest (sha256:...). When set, it is used instead of the tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Application settings. Rendered into a ConfigMap and passed as GWP_* environment variables.
+config:
+  # Git provider that sends the webhooks: github or gitlab.
+  provider: github
+  # URL the validated requests are forwarded to. Required.
+  upstreamURL: ""
+  # Comma-separated list of allowed request paths. Empty allows all paths.
+  allowedPaths: ""
+  # Comma-separated list of users whose events are dropped.
+  ignoredUsers: ""
+  # Comma-separated list of users whose events are forwarded. Empty allows all users.
+  allowedUsers: ""
+  # Skip TLS certificate verification of the upstream. Only for trusted upstreams
+  # with self-signed certificates.
+  insecureSkipVerify: false
+
+# Webhook secret (GitHub HMAC secret or GitLab token), passed as GWP_SECRET.
+# If neither value nor existingSecret is set, signature validation is disabled.
+secret:
+  # Create a Secret with this value. Prefer existingSecret for production.
+  value: ""
+  # Name of an existing Secret that holds the webhook secret.
+  existingSecret: ""
+  # Key inside the existing Secret.
+  existingSecretKey: secret
+
+# Additional environment variables for the container.
+extraEnv: []
+# - name: GODEBUG
+#   value: fips140=on
+
+serviceAccount:
+  create: true
+  # Name of the ServiceAccount. Generated from the fullname if empty.
+  name: ""
+  annotations: {}
+  # The proxy does not use the Kubernetes API.
+  automount: false
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  # Use NodePort, or ClusterIP with a cloud.google.com/neg annotation, for GKE Ingress.
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: gitwebhookproxy.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: gitwebhookproxy-tls
+  #   hosts:
+  #     - gitwebhookproxy.example.com
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 2
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: false
+  # Set one of minAvailable or maxUnavailable. With minAvailable 1 and a single
+  # replica, node drains are blocked: raise replicaCount or use maxUnavailable.
+  minAvailable: 1
+  maxUnavailable: ""
+
+networkPolicy:
+  enabled: false
+  # Ingress sources allowed to reach the proxy port. Empty allows all sources.
+  # Example: allow only the ingress controller namespace.
+  # - namespaceSelector:
+  #     matchLabels:
+  #       kubernetes.io/metadata.name: ingress-nginx
+  ingressFrom: []
+  # Egress rules. Empty allows all egress. If set, include DNS and the upstream.
+  egress: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+
+# GKE Ingress resources. Off by default.
+gke:
+  backendConfig:
+    # Create a BackendConfig and reference it from the Service annotation.
     enabled: false
-    annotations:
-      ingress.kubernetes.io/force-ssl-redirect: "true"
-      kubernetes.io/ingress.class: external-ingress
-      monitor.stakater.com/enabled: "true"
-    host: gitwebhookproxy.tools.stackator.com
-    tlsSecretName: ""
-    serviceName: gitwebhookproxy
-    servicePort: 80
-    # GCP specific configurations
-    gcp:
-      # Enable GCP FrontendConfig
+    # Name of the BackendConfig. Defaults to <fullname>-backend.
+    name: ""
+    healthCheck:
+      enabled: true
+      checkIntervalSec: 10
+      timeoutSec: 3
+      healthyThreshold: 2
+      unhealthyThreshold: 3
+      type: HTTP
+      requestPath: /health
+      # Container port of the proxy.
+      port: 8080
+    # Additional BackendConfig spec fields, for example timeoutSec, logging,
+    # connectionDraining or securityPolicy.
+    extraSpec: {}
+  frontendConfig:
+    # Create a FrontendConfig and reference it from the Ingress annotation.
+    # Requires ingress.enabled.
+    enabled: false
+    # Name of the FrontendConfig. Defaults to <fullname>-frontend.
+    name: ""
+    # Name of an existing GCP SSL policy.
+    sslPolicy: ""
+    redirectToHttps:
       enabled: false
-      # Name of the FrontendConfig resource
-      name: ""
-      # Backend configuration
-      backend:
-        # Enable backend configuration
-        enabled: false
-        # Name of the backend service
-        name: ""
-        # Health check configuration
-        healthCheck:
-          # Enable health check
-          enabled: true
-          # Health check configuration with optimized defaults
-          checkIntervalSec: 10
-          timeoutSec: 3
-          healthyThreshold: 2
-          unhealthyThreshold: 3
-          type: HTTP
-          port: 8080
-          requestPath: "/health"
-          # Additional health check configuration
-          # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#direct_health
-          proxyHeader: NONE
-          # Health check logging configuration
-          logConfig:
-            enabled: true
-      # SSL policy configuration
-      sslPolicy:
-        # Enable SSL policy
-        enabled: false
-        # Name of the SSL policy
-        name: "modern-ssl-policy"
-      # Redirect configuration
-      redirects:
-        enabled: false
-        # Redirect configurations
-        # https://cloud.google.com/kubernetes-engine/docs/how-to/ingress-features#https_redirect
-        responseCode: MOVED_PERMANENTLY_DEFAULT
+      responseCodeName: MOVED_PERMANENTLY_DEFAULT

@@ -1,0 +1,33 @@
+GitWebhookProxy {{ include "gitwebhookproxy.imageTag" . }} is deployed as {{ include "gitwebhookproxy.fullname" . }} in namespace {{ .Release.Namespace }}.
+
+Provider:    {{ .Values.config.provider }}
+Upstream:    {{ .Values.config.upstreamURL }}
+{{- if .Values.ingress.enabled }}
+
+Webhook URL(s):
+{{- range $host := .Values.ingress.hosts }}
+{{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+{{- end }}
+{{- end }}
+{{- else }}
+
+The proxy is not exposed outside the cluster. To test it locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "gitwebhookproxy.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://127.0.0.1:8080/health
+{{- end }}
+{{- if not (include "gitwebhookproxy.secretName" .) }}
+
+WARNING: no webhook secret is configured. Requests are forwarded without
+signature or token validation. Set secret.existingSecret (recommended) or
+secret.value.
+{{- end }}
+{{- if .Values.config.insecureSkipVerify }}
+
+WARNING: config.insecureSkipVerify is true. The upstream TLS certificate is not verified.
+{{- end }}
+{{- if and .Values.secret.value (not .Values.secret.existingSecret) }}
+
+NOTE: the webhook secret was passed as a chart value and is stored in the
+release history. Consider secret.existingSecret instead.
+{{- end }}

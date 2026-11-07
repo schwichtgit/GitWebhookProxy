@@ -1,0 +1,56 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+release:
+  name: gwp
+  namespace: default
+set:
+  config.upstreamURL: http://jenkins.example.svc:8080
+tests:
+  - it: is not rendered by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders hosts, class and tls when enabled
+    set:
+      ingress.enabled: true
+      ingress.className: nginx
+      ingress.hosts:
+        - host: hooks.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: hooks-tls
+          hosts:
+            - hooks.example.com
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: hooks.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service
+          value:
+            name: gwp-gitwebhookproxy
+            port:
+              number: 80
+      - equal:
+          path: spec.tls[0].secretName
+          value: hooks-tls
+      - notExists:
+          path: metadata.annotations["networking.gke.io/v1beta1.FrontendConfig"]
+
+  - it: references the FrontendConfig when enabled
+    set:
+      ingress.enabled: true
+      gke.frontendConfig.enabled: true
+    asserts:
+      - equal:
+          path: metadata.annotations["networking.gke.io/v1beta1.FrontendConfig"]
+          value: gwp-gitwebhookproxy-frontend
