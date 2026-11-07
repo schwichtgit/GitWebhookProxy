@@ -21,11 +21,19 @@ func Parse(req *http.Request, provider providers.Provider) (*providers.Hook, err
 		return nil, errors.New("Required header '" + header + "' not found in Request")
 	}
 
-	if body, err := io.ReadAll(req.Body); err != nil {
-		return nil, err
-	} else {
-		hook.Payload = body
+	if optional, ok := provider.(providers.OptionalHeaderProvider); ok {
+		for _, header := range optional.GetOptionalHeaderKeys() {
+			if value := req.Header.Get(header); value != "" {
+				hook.Headers[header] = value
+			}
+		}
 	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	hook.Payload = body
 
 	hook.RequestMethod = req.Method
 

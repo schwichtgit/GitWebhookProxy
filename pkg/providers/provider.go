@@ -22,14 +22,13 @@ type Provider interface {
 	GetProviderName() string
 }
 
-// assertProviderImplementations is used for compile-time verification that
-// provider types implement the Provider interface
-//
-//nolint:unused // This function is used for compile-time type checking
-func assertProviderImplementations() {
-	var _ Provider = (*GithubProvider)(nil)
-	var _ Provider = (*GitlabProvider)(nil)
-}
+// Compile-time checks that the provider types implement Provider.
+var (
+	_ Provider = (*GithubProvider)(nil)
+	_ Provider = (*GitlabProvider)(nil)
+
+	_ OptionalHeaderProvider = (*GithubProvider)(nil)
+)
 
 func NewProvider(provider string, secret string) (Provider, error) {
 	if len(provider) == 0 {
@@ -44,6 +43,12 @@ func NewProvider(provider string, secret string) (Provider, error) {
 	default:
 		return nil, errors.New("unknown git provider '" + provider + "' specified")
 	}
+}
+
+// OptionalHeaderProvider is implemented by providers that accept headers
+// which are copied into the hook only when the request carries them.
+type OptionalHeaderProvider interface {
+	GetOptionalHeaderKeys() []string
 }
 
 type Hook struct {

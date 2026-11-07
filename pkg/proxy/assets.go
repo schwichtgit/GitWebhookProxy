@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/stakater/GitWebhookProxy/pkg/assets"
@@ -24,31 +25,36 @@ func (p *Proxy) serveAssets(w http.ResponseWriter, r *http.Request) {
 	// Get the file data
 	data, err := assets.GetWebAssetData(filename)
 	if err != nil {
-		log.Printf("Error reading asset file %s: %v", filename, err)
+		log.Printf("Error reading asset file %s: %v", strconv.Quote(filename), err)
 		http.NotFound(w, r)
 		return
 	}
 
-	// Set the content type based on file extension
-	contentType := "application/octet-stream"
-	switch filepath.Ext(filename) {
-	case ".png":
-		contentType = "image/png"
-	case ".jpg", ".jpeg":
-		contentType = "image/jpeg"
-	case ".gif":
-		contentType = "image/gif"
-	case ".css":
-		contentType = "text/css"
-	case ".js":
-		contentType = "application/javascript"
-	case ".html":
-		contentType = "text/html"
-	}
-
-	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Type", assetContentType(filename))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
-	if _, err := w.Write(data); err != nil {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// data comes from the embedded asset filesystem, not from the request.
+	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: embedded content
 		log.Printf("Error writing response: %v", err)
 	}
+}
+
+// assetContentType returns the Content-Type for an asset based on its file
+// extension.
+func assetContentType(filename string) string {
+	switch filepath.Ext(filename) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".css":
+		return "text/css"
+	case ".js":
+		return "application/javascript"
+	case ".html":
+		return "text/html"
+	}
+	return "application/octet-stream"
 }

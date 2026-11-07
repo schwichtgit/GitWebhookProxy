@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,12 +56,13 @@ func (p *Proxy) isPathAllowed(path string) bool {
 		return true
 	}
 
-	// Check if given passed exists in allowedPaths
+	// A path is allowed when it equals an allowed path or lies below it.
+	// Matching stops at segment boundaries: "/path1" allows "/path1/x" but
+	// not "/path10".
+	incomingPath := strings.TrimSuffix(strings.TrimSpace(path), "/")
 	for _, allowedPath := range p.allowedPaths {
-		allowedPath = strings.TrimSpace(allowedPath)
-		incomingPath := strings.TrimSpace(path)
-		if strings.TrimSuffix(allowedPath, "/") ==
-			strings.TrimSuffix(incomingPath, "/") || strings.HasPrefix(incomingPath, allowedPath) {
+		allowedPath = strings.TrimSuffix(strings.TrimSpace(allowedPath), "/")
+		if incomingPath == allowedPath || strings.HasPrefix(incomingPath, allowedPath+"/") {
 			return true
 		}
 	}
@@ -131,10 +133,12 @@ func (p *Proxy) proxyRequest(w http.ResponseWriter, r *http.Request) {
 		redirectURL += "?" + r.URL.RawQuery
 	}
 
-	log.Printf("Proxying Request from '%s', to upstream '%s'\n", r.URL, redirectURL)
+	// Request values are quoted in log lines so control characters are escaped.
+	logURL, logUpstream := strconv.Quote(r.URL.String()), strconv.Quote(redirectURL)
+	log.Printf("Proxying Request from %s, to upstream %s\n", logURL, logUpstream)
 
 	if !p.isPathAllowed(r.URL.Path) {
-		log.Printf("Not allowed to proxy path: '%s'", r.URL.Path)
+		log.Printf("Not allowed to proxy path: %s", strconv.Quote(r.URL.Path))
 		http.Error(w, "Not allowed to proxy path: '"+r.URL.Path+"'", http.StatusForbidden)
 		return
 	}
@@ -153,10 +157,20 @@ func (p *Proxy) proxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate before user filtering so unsigned requests learn nothing
+	// about the ignored and allowed user lists.
+	if len(strings.TrimSpace(p.secret)) > 0 && !provider.Validate(*hook) {
+		log.Printf("Error Validating Hook")
+		http.Error(w, "Error validating Hook", http.StatusBadRequest)
+		return
+	}
+
 	committer := provider.GetCommitter(*hook)
-	log.Printf("Incoming request from user: %s", committer)
+	log.Printf("Incoming request from user: %q", committer)
 	if p.isIgnoredUser(committer) || (!p.isAllowedUser(committer)) {
-		log.Printf("Ignoring request for user: %s", committer)
+		log.Printf("Ignoring request for user: %q", committer)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
 		if _, err := fmt.Fprintf(w, "Ignoring request for user: %s", committer); err != nil {
 			log.Printf("Error writing response: %v", err)
@@ -164,32 +178,27 @@ func (p *Proxy) proxyRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(strings.TrimSpace(p.secret)) > 0 && !provider.Validate(*hook) {
-		log.Printf("Error Validating Hook")
-		http.Error(w, "Error validating Hook", http.StatusBadRequest)
-		return
-	}
-
 	resp, errs := p.redirect(hook, redirectURL)
 	if errs != nil {
-		log.Printf("Error Redirecting '%s' to upstream '%s': %s\n", r.URL, redirectURL, errs)
-		http.Error(w, "Error Redirecting '"+r.URL.String()+"' to upstream '"+redirectURL+"'", http.StatusInternalServerError)
+		log.Printf("Error Redirecting %s to upstream %s: %s\n", logURL, logUpstream, errs)
+		http.Error(w, "Error forwarding request to upstream", http.StatusBadGateway)
 		return
 	}
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
-		log.Printf("Error Redirecting '%s' to upstream '%s', Upstream Redirect Status: %s\n", r.URL, redirectURL, resp.Status)
-		http.Error(w, "Error Redirecting '"+r.URL.String()+"' to upstream '"+redirectURL+"' Upstream Redirect Status:"+resp.Status, resp.StatusCode)
+		log.Printf("Error Redirecting %s to upstream %s, Upstream Redirect Status: %s\n", logURL, logUpstream, resp.Status)
+		http.Error(w, "Upstream returned status: "+resp.Status, resp.StatusCode)
 		return
 	}
 
-	log.Printf("Redirected incoming request '%s' to '%s' with Response: '%s'\n",
-		r.URL, redirectURL, resp.Status)
+	log.Printf("Redirected incoming request %s to %s with Response: '%s'\n",
+		logURL, logUpstream, resp.Status)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error Reading upstream '%s' response body\n", r.URL)
-		http.Error(w, "Error Reading upstream '"+redirectURL+"' Response body", http.StatusInternalServerError)
+		log.Printf("Error Reading upstream %s response body\n", logURL)
+		http.Error(w, "Error reading upstream response body", http.StatusBadGateway)
 		return
 	}
 
@@ -200,7 +209,7 @@ func (p *Proxy) proxyRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 // Health Check Endpoint
-func (p *Proxy) health(w http.ResponseWriter, r *http.Request) {
+func (p *Proxy) health(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(200)
 	if _, err := fmt.Fprint(w, "I'm Healthy and I know it! ;) "); err != nil {
 		log.Printf("Error writing health check response: %v", err)
@@ -213,13 +222,38 @@ func (p *Proxy) Run(listenAddress string) error {
 		panic("Cannot create Proxy with empty listenAddress")
 	}
 
+	log.Printf("Listening at: %s", listenAddress)
+	return p.newServer(listenAddress).ListenAndServe()
+}
+
+// Server timeouts. Upstream requests time out after 30s, so the write timeout
+// leaves room for the proxied response.
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 60 * time.Second
+	idleTimeout       = 120 * time.Second
+)
+
+func (p *Proxy) newServer(listenAddress string) *http.Server {
+	return &http.Server{
+		Addr:              listenAddress,
+		Handler:           p.Handler(),
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+}
+
+// Handler returns the HTTP handler serving the health check, the embedded
+// assets and the webhook proxy endpoint.
+func (p *Proxy) Handler() http.Handler {
 	router := chi.NewRouter()
 	router.Get("/health", p.health)
 	router.Get("/assets/*", p.serveAssets)
 	router.Post("/*", p.proxyRequest)
-
-	log.Printf("Listening at: %s", listenAddress)
-	return http.ListenAndServe(listenAddress, router)
+	return router
 }
 
 func NewProxy(upstreamURL string, allowedPaths []string,
