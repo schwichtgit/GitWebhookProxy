@@ -6,6 +6,9 @@ config:
     line_length: 80
     tables: false
     code_blocks: false
+  # Keep a Changelog repeats "Added", "Fixed" etc. under each version.
+  MD024:
+    siblings_only: true
 globs:
   - "**/*.md"
 ignores:
