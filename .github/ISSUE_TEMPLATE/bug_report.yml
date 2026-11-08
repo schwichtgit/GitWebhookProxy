@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a defect in GitWebhookProxy
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Report security problems privately
+        through a security advisory, not here.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Webhook validation (GitHub/GitLab)
+        - Request forwarding / upstream
+        - Configuration (flags, GWP_* variables)
+        - Helm chart
+        - Container image
+        - Release artifacts / signatures
+        - CI / build
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release version, image tag or chart version.
+      placeholder: "0.3.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Configure the proxy with ...
+        2. Send a webhook ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        - Provider: GitHub / GitLab
+        - Deployment: Helm (Kubernetes version) / container / binary
+        - Upstream: Jenkins version / other
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Proxy log output
+      description: Remove secrets and internal host names before pasting.
+      render: text
+    validations:
+      required: false

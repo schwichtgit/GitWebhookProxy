@@ -18,7 +18,8 @@ maintained independently.
   verification
 
 Operating the service: [RUNBOOK.md](RUNBOOK.md). Changes and upgrade notes:
-[CHANGELOG.md](CHANGELOG.md).
+[CHANGELOG.md](CHANGELOG.md). Reporting vulnerabilities:
+[SECURITY.md](SECURITY.md).
 
 ## How a request is handled
 
