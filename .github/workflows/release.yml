@@ -113,8 +113,9 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           for platform in linux/amd64 linux/arm64; do
-            trivy image --platform "$platform" --scanners vuln,secret \
+            trivy image --platform "$platform" --scanners vuln \
               --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${IMAGE}@${DIGEST}"
+            trivy image --platform "$platform" --scanners secret --exit-code 1 "${IMAGE}@${DIGEST}"
           done
 
       # Sign the index and every platform manifest with a keyless certificate

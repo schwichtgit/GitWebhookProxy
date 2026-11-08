@@ -13,3 +13,5 @@ dist
 coverage.out
 gitwebhookproxy
 GitWebhookProxy
+.cache
+.mise

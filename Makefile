@@ -37,8 +37,8 @@ HELM_UNITTEST_VERSION ?= v1.2.1
 KYVERNO_POLICIES_REF  ?= 282e77f6d54e1e1a636190ff2dacc3d02c2d689c
 CACHE_DIR  ?= .cache
 
-# Trivy gates: fail on fixable HIGH/CRITICAL vulnerabilities, any secret, and
-# HIGH/CRITICAL misconfigurations.
+# Trivy gates: fail on fixable HIGH/CRITICAL vulnerabilities, on secrets of
+# any severity, and on HIGH/CRITICAL misconfigurations.
 TRIVY_SEVERITY ?= HIGH,CRITICAL
 
 comma := ,
@@ -117,9 +117,10 @@ endif
 
 docker: image ## Alias for image
 
-image-scan: ## Scan the image for fixable HIGH/CRITICAL CVEs and for secrets
-	trivy image --scanners vuln,secret --severity $(TRIVY_SEVERITY) --ignore-unfixed \
+image-scan: ## Scan the image for fixable HIGH/CRITICAL CVEs and for secrets of any severity
+	trivy image --scanners vuln --severity $(TRIVY_SEVERITY) --ignore-unfixed \
 		--exit-code 1 $(IMAGE):$(IMAGE_TAG)
+	trivy image --scanners secret --exit-code 1 $(IMAGE):$(IMAGE_TAG)
 
 secret-scan: ## Scan the repository for committed secrets
 	trivy fs --scanners secret --exit-code 1 --skip-dirs $(CACHE_DIR) --skip-dirs .claude .

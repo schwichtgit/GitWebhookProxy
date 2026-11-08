@@ -53,7 +53,7 @@ into the binary with `-X main.version=...` and printed at startup.
 | `secret-scan`   | `trivy fs --scanners secret` on the repository.                                                 |
 | `config-scan`   | `trivy config` on the Dockerfile, chart and workflows; fails on HIGH or CRITICAL.               |
 | `image`         | Builds the container image. Alias: `docker`.                                                    |
-| `image-scan`    | `trivy image --scanners vuln,secret`; fails on fixable HIGH/CRITICAL CVEs or any secret.        |
+| `image-scan`    | `trivy image`; fails on fixable HIGH/CRITICAL CVEs or on a secret of any severity.              |
 | `clean`         | Removes the binary, `coverage.out`, `dist/` and `.cache/`.                                      |
 
 Variables can be overridden on the command line, for example
