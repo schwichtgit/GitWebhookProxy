@@ -18,3 +18,4 @@
 
 # Tool caches (make kyverno-check)
 /.cache/
+/.mise/
