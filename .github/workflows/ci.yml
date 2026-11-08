@@ -14,115 +14,60 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/schwichtgit/gitwebhookproxy
+  # mise itself is pinned; all other tools are pinned in mise.toml / mise.lock.
+  MISE_VERSION: 2026.11.3
 
 jobs:
-  go:
-    runs-on: ubuntu-latest
+  qa:
+    name: static QA gates
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          go-version-file: go.mod
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
 
-      - name: go mod tidy
-        run: make tidy-check
+      # gofmt, go vet, go mod tidy, golangci-lint, govulncheck, markdownlint,
+      # prettier, actionlint, hadolint, helm lint, helm-unittest, kubeconform,
+      # Kyverno Pod Security, trivy secret and misconfiguration scans.
+      - name: make qa
+        run: make qa
 
-      - name: go vet
-        run: go vet ./...
-
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+  test:
+    name: tests and coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          version: v2.15.0
-          # Build with the go.mod toolchain; prebuilt binaries from an older Go fail to typecheck.
-          install-mode: goinstall
+          persist-credentials: false
 
-      - name: Test with coverage gate
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
+
+      - name: Tests with race detector and 85% coverage gate
         run: make cover
 
-      - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
-          govulncheck ./...
-
-  helm:
-    runs-on: ubuntu-latest
-    env:
-      CHART_DIR: deployments/kubernetes/chart/gitwebhookproxy
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-        with:
-          version: v4.3.1
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Install kubeconform
-        run: go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
-
-      - name: helm lint and template
-        run: make helm-lint
-
-      - name: kubeconform
-        run: |
-          shopt -s nullglob
-          for k8s in 1.30.0 1.33.0; do
-            for f in "$CHART_DIR"/ci/*-values.yaml; do
-              echo "Kubernetes $k8s, values $f"
-              helm template gitwebhookproxy "$CHART_DIR" -f "$f" --kube-version "$k8s" \
-                | kubeconform -strict -summary -kubernetes-version "$k8s" -ignore-missing-schemas
-            done
-          done
-
-      - name: helm-unittest
-        run: |
-          if compgen -G "$CHART_DIR/tests/*_test.yaml" >/dev/null; then
-            helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.2.1 --verify=false
-            helm unittest "$CHART_DIR"
-          else
-            echo "No chart tests found, skipping."
-          fi
-
-      - uses: kyverno/action-install-cli@fcee92fca5c883169ef9927acf543e0b5fc58289 # v0.2.0
-        with:
-          release: v1.19.2
-
-      # Check every rendered values set against Kyverno's Pod Security
-      # baseline and restricted policies (kyverno/policies release-1.19).
-      - name: Kyverno Pod Security checks
-        env:
-          POLICIES_REF: 282e77f6d54e1e1a636190ff2dacc3d02c2d689c
-        run: |
-          git clone --quiet https://github.com/kyverno/policies.git "$RUNNER_TEMP/kyverno-policies"
-          git -C "$RUNNER_TEMP/kyverno-policies" checkout --quiet "$POLICIES_REF"
-          kubectl kustomize "$RUNNER_TEMP/kyverno-policies/pod-security/baseline" > "$RUNNER_TEMP/pss.yaml"
-          echo "---" >> "$RUNNER_TEMP/pss.yaml"
-          kubectl kustomize "$RUNNER_TEMP/kyverno-policies/pod-security/restricted" >> "$RUNNER_TEMP/pss.yaml"
-          for f in "$CHART_DIR"/ci/*-values.yaml; do
-            echo "values $f"
-            helm template gitwebhookproxy "$CHART_DIR" -f "$f" > "$RUNNER_TEMP/rendered.yaml"
-            kyverno apply "$RUNNER_TEMP/pss.yaml" --resource "$RUNNER_TEMP/rendered.yaml" --remove-color
-          done
-
   image:
-    runs-on: ubuntu-latest
+    name: container image
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: hadolint
-        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          dockerfile: build/package/Dockerfile
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -153,12 +98,7 @@ jobs:
             VERSION=ci-${{ github.sha }}
             REVISION=${{ github.sha }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
-      - name: Trivy scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE }}:ci
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+      # Fails on fixable HIGH/CRITICAL CVEs and on any secret in the image.
+      - name: Trivy image scan (CVEs and secrets)
+        run: make image-scan IMAGE_TAG=ci

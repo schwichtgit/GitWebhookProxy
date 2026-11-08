@@ -11,3 +11,4 @@ globs:
 ignores:
   - ".claude/**"
   - "dist/**"
+  - ".cache/**"

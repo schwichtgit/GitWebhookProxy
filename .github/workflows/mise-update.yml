@@ -1,0 +1,66 @@
+name: mise-update
+
+# Dependabot does not read mise.toml, so this job bumps the tool pins weekly
+# and opens (or updates) a pull request with the new mise.toml and mise.lock.
+# Pull requests created with GITHUB_TOKEN do not start other workflows; close
+# and reopen the PR, or push to it, to run CI.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: 2026.11.3
+  BRANCH: deps/mise-tools
+  # Node stays on its LTS major; change this when moving to the next LTS.
+  NODE_MAJOR: "26"
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: false
+          cache: false
+
+      - name: Bump pins and refresh the lockfile
+        run: |
+          tools="$(mise ls --current --json | jq -r 'keys[]' | grep -vx node)"
+          # shellcheck disable=SC2086 # one argument per tool
+          mise upgrade --bump $tools
+          MISE_PIN=1 mise upgrade --bump "node@${NODE_MAJOR}"
+          mise lock
+
+      - name: Open or update pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- mise.toml mise.lock; then
+            echo "Tool pins are current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add mise.toml mise.lock
+          git commit -m "deps: bump mise tool versions" -m "$(git diff --cached -U0 -- mise.toml | grep '^[-+][^-+]' || true)"
+          git push --force origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head "$BRANCH" --title "deps: bump mise tool versions" \
+              --body "Weekly \`mise upgrade --bump\`. Review the version changes in mise.toml; mise.lock carries the checksums."
+          fi

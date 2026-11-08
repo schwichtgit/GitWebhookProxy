@@ -1,0 +1,31 @@
+# Development and CI toolchain. Every tool is pinned to an exact version;
+# Renovate updates these pins (mise manager) and mise.lock records checksums.
+# Install with: mise install
+
+[settings]
+lockfile = true
+
+[tools]
+go = "1.27.3"
+node = "26.13.0"
+
+# Lint and test
+"aqua:golangci/golangci-lint" = "2.15.0"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
+"aqua:hadolint/hadolint" = "2.15.1"
+"aqua:rhysd/actionlint" = "1.7.12"
+"aqua:koalaman/shellcheck" = "0.11.0"
+"npm:markdownlint-cli2" = "0.24.0"
+"npm:prettier" = "3.9.10"
+
+# Kubernetes
+"aqua:helm/helm" = "4.3.1"
+"aqua:kubernetes/kubernetes/kubectl" = "1.37.2"
+"aqua:yannh/kubeconform" = "0.8.0"
+"aqua:kyverno/kyverno" = "1.19.2"
+
+# Release and supply chain
+"aqua:goreleaser/goreleaser" = "2.20.0"
+"aqua:sigstore/cosign" = "3.1.4"
+"aqua:anchore/syft" = "1.57.0"
+"aqua:aquasecurity/trivy" = "0.76.2"

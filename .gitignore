@@ -15,3 +15,6 @@
 
 # Local Claude Code state
 .claude/
+
+# Tool caches (make kyverno-check)
+/.cache/
