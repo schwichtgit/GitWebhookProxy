@@ -151,18 +151,22 @@ and key exchanges. Build with `GOFIPS140=off` to turn it off. See
 
 ## Development
 
+All tools are pinned in `mise.toml` and installed with
+[mise](https://mise.jdx.dev).
+
 ```sh
+mise install     # pinned toolchain
 make help        # list targets
 make build       # ./gitwebhookproxy
 make cover       # tests with race detector, fails below 85% coverage
-make lint vuln   # golangci-lint, govulncheck
+make qa          # all static QA gates, as run in CI
 make image       # container image
-make helm-lint   # lint and render the chart
+make image-scan  # trivy CVE and secret scan of the image
 ```
 
 Build system, CI and the release process: [build/README.md](build/README.md).
 Releases are cut by pushing a `vX.Y.Z` tag; dependencies are kept current by
-Dependabot.
+Dependabot and a weekly mise update job.
 
 ## License
 

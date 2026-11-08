@@ -57,10 +57,17 @@ Read these before upgrading from upstream 0.2.x:
   ServiceAccount, HPA, PDB, NetworkPolicy, GKE BackendConfig/FrontendConfig,
   `helm test`, helm-unittest suites, and an optional Kyverno policy that
   verifies the image signature and SBOM at admission.
-- GitHub Actions CI (lint, tests with an 85% coverage gate, govulncheck,
-  hadolint, chart lint/unit tests/kubeconform, Kyverno Pod Security checks,
-  multi-arch image build, trivy) and a tag-driven release workflow.
-- Dependabot for Go modules, base images and GitHub Actions.
+- Pinned toolchain in `mise.toml` / `mise.lock` used locally and in CI.
+- `make qa` static QA gates, run in CI: gofmt, go vet, go mod tidy,
+  golangci-lint, govulncheck, markdownlint-cli2, prettier, actionlint,
+  hadolint, helm lint, helm-unittest, kubeconform, Kyverno Pod Security, and
+  trivy secret and misconfiguration scans.
+- Trivy CVE and secret scan of the container image in CI and as a release
+  gate before signing.
+- GitHub Actions CI (QA gates, tests with an 85% coverage gate, multi-arch
+  image build and scan) and a tag-driven release workflow.
+- Dependabot for Go modules, base images and GitHub Actions; a weekly
+  workflow bumps the mise tool pins.
 - [RUNBOOK.md](RUNBOOK.md).
 
 ### Changed

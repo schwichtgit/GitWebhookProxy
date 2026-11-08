@@ -47,8 +47,8 @@ Listening at: :8080
 From inside the cluster:
 
 ```sh
-kubectl -n $NS run curl --rm -it --restart=Never --image=curlimages/curl:8.11.1 \
-  --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"curl","image":"curlimages/curl:8.11.1","args":["-s","http://'$DEPLOY'/health"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
+kubectl -n $NS run curl --rm -it --restart=Never --image=curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69 \
+  --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"curl","image":"curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69","args":["-s","http://'$DEPLOY'/health"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
 ```
 
 The last delivery status per webhook is visible on the provider side:
@@ -173,7 +173,7 @@ The image is distroless and has no shell. Use an ephemeral debug container
 that satisfies the restricted Pod Security profile:
 
 ```sh
-kubectl -n $NS debug -it pod/<pod> --image=busybox:1.37.0 --target=gitwebhookproxy --profile=restricted
+kubectl -n $NS debug -it pod/<pod> --image=busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec --target=gitwebhookproxy --profile=restricted
 ```
 
 ## Supply chain

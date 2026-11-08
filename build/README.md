@@ -3,12 +3,24 @@
 Everything goes through the top-level `Makefile`. Run `make` (or `make help`)
 to list targets and the current values of the main variables.
 
-## Requirements
+## Toolchain
 
-- Go, version from `go.mod`
-- golangci-lint v2, govulncheck
-- Docker with buildx, or Podman
-- trivy, helm (for `image-scan` and `helm-lint`)
+All tools are pinned in `mise.toml`, with checksums in `mise.lock`: Go,
+Node, golangci-lint, govulncheck, markdownlint-cli2, prettier, actionlint,
+shellcheck, hadolint, helm, kubectl, kubeconform, kyverno, goreleaser,
+cosign, syft and trivy. CI installs exactly these versions with
+`jdx/mise-action`, and the mise version itself is pinned in the workflows.
+
+```bash
+mise install          # or: make tools
+mise exec -- make qa  # if mise is not activated in your shell
+```
+
+Docker with buildx, or Podman, is needed for `make image`.
+
+The helm-unittest plugin and the kyverno/policies checkout are not in the
+mise registry; their versions are pinned in the Makefile
+(`HELM_UNITTEST_VERSION`, `KYVERNO_POLICIES_REF`).
 
 ## Versioning
 
@@ -18,19 +30,31 @@ into the binary with `-X main.version=...` and printed at startup.
 
 ## Make targets
 
-| Target       | What it does                                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------------------ |
-| `build`      | Builds `./gitwebhookproxy` with `CGO_ENABLED=0` and `-trimpath`.                                             |
-| `test`       | `go test -race ./...`.                                                                                       |
-| `cover`      | Same as `test` with a coverage profile in `coverage.out`. Fails if total coverage is below `COVER_MIN` (85). |
-| `lint`       | `golangci-lint run` with `.golangci.yml`.                                                                    |
-| `vuln`       | `govulncheck ./...`.                                                                                         |
-| `fmt`        | `go fmt ./...`.                                                                                              |
-| `tidy-check` | Fails if `go mod tidy` would change `go.mod` or `go.sum`.                                                    |
-| `image`      | Builds the container image. Alias: `docker`.                                                                 |
-| `image-scan` | `trivy image`, fails on fixable HIGH or CRITICAL findings.                                                   |
-| `helm-lint`  | `helm lint --strict` and `helm template` of the chart, including each `ci/*-values.yaml`.                    |
-| `clean`      | Removes the binary, `coverage.out` and `dist/`.                                                              |
+| Target          | What it does                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| `tools`         | `mise install`.                                                                                 |
+| `qa`            | All static QA gates below, in one run. CI runs exactly this.                                    |
+| `build`         | Builds `./gitwebhookproxy` with `CGO_ENABLED=0` and `-trimpath`.                                |
+| `test`          | `go test -race ./...`.                                                                          |
+| `cover`         | `test` with a coverage profile in `coverage.out`; fails below `COVER_MIN` (85%).                |
+| `fmt`           | `go fmt ./...`.                                                                                 |
+| `fmt-check`     | Fails if `gofmt -l` lists files.                                                                |
+| `vet`           | `go vet ./...`.                                                                                 |
+| `tidy-check`    | Fails if `go mod tidy` would change `go.mod` or `go.sum`.                                       |
+| `lint`          | golangci-lint with `.golangci.yml`.                                                             |
+| `vuln`          | govulncheck.                                                                                    |
+| `docs-lint`     | markdownlint-cli2 (`.markdownlint-cli2.yaml`) and `prettier --check` on all markdown.           |
+| `actionlint`    | actionlint (with shellcheck) on the workflows.                                                  |
+| `hadolint`      | hadolint on the Dockerfile.                                                                     |
+| `helm-lint`     | `helm lint --strict` and `helm template`, including each `ci/*-values.yaml`.                    |
+| `helm-unittest` | Chart unit tests in `tests/`.                                                                   |
+| `kubeconform`   | Rendered manifests against Kubernetes 1.30 and 1.33 schemas (CRDs without schemas are skipped). |
+| `kyverno-check` | Rendered manifests against the Kyverno Pod Security baseline and restricted policies.           |
+| `secret-scan`   | `trivy fs --scanners secret` on the repository.                                                 |
+| `config-scan`   | `trivy config` on the Dockerfile, chart and workflows; fails on HIGH or CRITICAL.               |
+| `image`         | Builds the container image. Alias: `docker`.                                                    |
+| `image-scan`    | `trivy image --scanners vuln,secret`; fails on fixable HIGH/CRITICAL CVEs or any secret.        |
+| `clean`         | Removes the binary, `coverage.out`, `dist/` and `.cache/`.                                      |
 
 Variables can be overridden on the command line, for example
 `make image IMAGE=registry.example.com/gwp VERSION=v1.2.3`.
@@ -99,13 +123,15 @@ See <https://go.dev/doc/security/fips140>.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `master`:
+`.github/workflows/ci.yml` runs on pull requests and pushes to `master`, on
+`ubuntu-24.04` runners, with the tools from `mise.toml`:
 
-- `go mod tidy` check, `go vet`, golangci-lint, `make cover`, govulncheck
-- `make helm-lint`, kubeconform (strict, Kubernetes 1.30 and 1.33 schemas,
-  missing CRD schemas such as GKE BackendConfig are skipped), and
-  helm-unittest when the chart has tests
-- hadolint, image build without push, trivy scan of the image
+- `qa`: `make qa` (all static gates, including trivy secret and
+  misconfiguration scans)
+- `test`: `make cover`
+- `image`: multi-arch build (linux/amd64, linux/arm64) without push, then
+  `make image-scan` on the host-architecture image (trivy CVE and secret
+  scan)
 
 ## Release
 
@@ -114,17 +140,25 @@ Push a tag `vX.Y.Z`. `.github/workflows/release.yml` then:
 1. Runs GoReleaser (`.goreleaser.yaml`): binaries for linux, darwin and
    windows on amd64 and arm64, archives, checksums and changelog, published
    as a GitHub release.
+   GoReleaser also writes an SPDX SBOM per archive (syft) and signs the
+   checksums file with cosign (keyless).
 2. Builds and pushes the multi-arch image (linux/amd64, linux/arm64) to
-   `ghcr.io/schwichtgit/gitwebhookproxy`, tagged `X.Y.Z` and `X.Y`, with
-   provenance and SBOM attestations, and signs it with cosign (keyless).
-3. Packages the Helm chart with version and appVersion `X.Y.Z` and pushes it
-   to `oci://ghcr.io/schwichtgit/charts`.
+   `ghcr.io/schwichtgit/gitwebhookproxy`, tagged `X.Y.Z` and `X.Y`, with SLSA
+   provenance. Each platform image is scanned with trivy (CVEs and secrets)
+   before anything is signed. The index and platform manifests are then
+   signed with cosign (keyless), and a syft SPDX SBOM is attached to each
+   platform manifest as a signed attestation.
+3. Packages the Helm chart with version and appVersion `X.Y.Z`, pushes it to
+   `oci://ghcr.io/schwichtgit/charts` and signs it with cosign (keyless).
+
+Every job verifies its signatures against the workflow identity before it
+finishes.
 
 Verify an image signature:
 
 ```bash
 cosign verify ghcr.io/schwichtgit/gitwebhookproxy:X.Y.Z \
-  --certificate-identity-regexp '^https://github.com/schwichtgit/GitWebhookProxy/' \
+  --certificate-identity https://github.com/schwichtgit/GitWebhookProxy/.github/workflows/release.yml@refs/tags/vX.Y.Z \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
@@ -137,5 +171,12 @@ helm install gitwebhookproxy oci://ghcr.io/schwichtgit/charts/gitwebhookproxy \
 
 ## Dependency updates
 
-Dependabot (`.github/dependabot.yml`) checks Go modules, the Dockerfile base
-images and GitHub Actions weekly, grouping minor and patch updates.
+- Dependabot (`.github/dependabot.yml`) checks Go modules, the Dockerfile
+  base images and GitHub Actions weekly, grouping minor and patch updates.
+- Dependabot cannot read `mise.toml`. `.github/workflows/mise-update.yml`
+  runs `mise upgrade --bump` and `mise lock` every Monday and opens a pull
+  request with the changes. Node stays on its LTS major (`NODE_MAJOR`).
+  Pull requests opened with `GITHUB_TOKEN` do not start CI on their own;
+  close and reopen the PR to run it.
+- `MISE_VERSION` in the workflows and the two Makefile pins above are updated
+  by hand.
