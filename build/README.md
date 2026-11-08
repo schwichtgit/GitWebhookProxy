@@ -186,11 +186,15 @@ helm install gitwebhookproxy oci://ghcr.io/schwichtgit/charts/gitwebhookproxy \
 ## Dependency updates
 
 - Dependabot (`.github/dependabot.yml`) checks Go modules, the Dockerfile
-  base images and GitHub Actions weekly, grouping minor and patch updates.
+  base images and GitHub Actions every Saturday. A cooldown holds back new
+  versions (major 14 days, minor 7, patch 3, other 7) so a release that is
+  pulled shortly after publication never reaches a pull request. Security
+  updates are not subject to the cooldown.
 - Dependabot cannot read `mise.toml`. `.github/workflows/mise-update.yml`
-  runs `mise upgrade --bump` and `mise lock` every Monday and opens a pull
-  request with the changes. Node stays on its LTS major (`NODE_MAJOR`).
-  Pull requests opened with `GITHUB_TOKEN` do not start CI on their own;
-  close and reopen the PR to run it.
+  runs `mise upgrade --bump --minimum-release-age 7d` and `mise lock` every
+  Monday and opens a pull request with the changes. Versions published in the
+  last 7 days are skipped, matching the Dependabot cooldown. Node stays on its
+  LTS major (`NODE_MAJOR`). Pull requests opened with `GITHUB_TOKEN` do not
+  start CI on their own; close and reopen the PR to run it.
 - `MISE_VERSION` in the workflows and the two Makefile pins above are updated
   by hand.

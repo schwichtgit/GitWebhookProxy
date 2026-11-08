@@ -1,29 +1,60 @@
 version: 2
+
+# Version updates run weekly on Saturday. The cooldown holds back versions
+# that were published recently, so a compromised release that is yanked
+# within days never reaches a pull request. Security updates ignore the
+# cooldown and are opened as soon as an advisory is published.
+#
+# Editing this file triggers an immediate re-check of every ecosystem; there
+# is no API to start a run otherwise (use Insights > Dependency graph >
+# Dependabot > Check for updates).
 updates:
   - package-ecosystem: gomod
     directory: /
     schedule:
       interval: weekly
+      day: saturday
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
     commit-message:
       prefix: deps
     groups:
       go-minor-patch:
         update-types: [minor, patch]
 
+  # Base images are pinned by tag and digest. The distroless runtime image
+  # uses the "nonroot" tag, so its updates are digest-only and have no semver
+  # type; an update-types filter would make Dependabot skip them without
+  # opening a pull request. The group therefore matches by name only.
   - package-ecosystem: docker
     directory: /build/package
     schedule:
       interval: weekly
+      day: saturday
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
     commit-message:
       prefix: deps
     groups:
-      docker-minor-patch:
-        update-types: [minor, patch]
+      base-images:
+        patterns: ["*"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: saturday
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
     commit-message:
       prefix: deps
     groups:
