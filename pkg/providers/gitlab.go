@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"strings"
@@ -57,7 +58,7 @@ func (p *GitlabProvider) Validate(hook Hook) bool {
 		return false
 	}
 
-	return strings.TrimSpace(token) == strings.TrimSpace(p.secret)
+	return subtle.ConstantTimeCompare([]byte(strings.TrimSpace(token)), []byte(strings.TrimSpace(p.secret))) == 1
 }
 
 func (p *GitlabProvider) GetCommitter(hook Hook) string {

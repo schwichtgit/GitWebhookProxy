@@ -1,26 +1,20 @@
-# Created by .ignore support plugin (hsz.mobi)
-### Go template
-# Binaries for programs and plugins
+# Build outputs
+/gitwebhookproxy
+/GitWebhookProxy
+/dist/
 *.exe
-*.dll
-*.so
-*.dylib
-
-# Test binary, build with `go test -c`
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Coverage
 *.out
 
-# IDE
+# Editors
 .idea/
 *.iml
-.vscode
+.vscode/
 
-# Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
-.glide/
-vendor
+# Local Claude Code state
+.claude/
 
-# Executable
-build/docker/gitwebhookproxy
-GitWebhookProxy
+# Tool caches (make kyverno-check)
+/.cache/

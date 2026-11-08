@@ -1,0 +1,195 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/schwichtgit/gitwebhookproxy
+  CHART_DIR: deployments/kubernetes/chart/gitwebhookproxy
+  CHART_REPO: oci://ghcr.io/schwichtgit/charts
+  # Keyless signing: cosign gets a short-lived Fulcio certificate for the
+  # GitHub OIDC identity of this workflow run and records each signature in
+  # the Rekor transparency log. Verification pins that identity.
+  CERT_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}
+  CERT_ISSUER: https://token.actions.githubusercontent.com
+  # mise itself is pinned; cosign, syft, goreleaser, helm, trivy and go are
+  # pinned in mise.toml / mise.lock.
+  MISE_VERSION: 2026.11.3
+
+jobs:
+  binaries:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write # cosign keyless signing of the checksums file
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
+
+      - name: goreleaser
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: goreleaser release --clean
+
+      - name: Verify checksums signature
+        run: |
+          cosign verify-blob \
+            --bundle dist/*_checksums.txt.sigstore.json \
+            --certificate-identity "$CERT_IDENTITY" \
+            --certificate-oidc-issuer "$CERT_ISSUER" \
+            dist/*_checksums.txt
+
+  image:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # cosign keyless signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The builder cross-compiles and the runtime stage has no RUN steps, so
+      # no emulation is needed for the arm64 image.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: build/package/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+          provenance: mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
+
+      # Gate before signing: fixable HIGH/CRITICAL CVEs or any secret in a
+      # platform image stops the release.
+      - name: Trivy scan (CVEs and secrets)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          for platform in linux/amd64 linux/arm64; do
+            trivy image --platform "$platform" --scanners vuln \
+              --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${IMAGE}@${DIGEST}"
+            trivy image --platform "$platform" --scanners secret --exit-code 1 "${IMAGE}@${DIGEST}"
+          done
+
+      # Sign the index and every platform manifest with a keyless certificate
+      # bound to this workflow.
+      - name: Sign image
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes --recursive "${IMAGE}@${DIGEST}"
+
+      # One SPDX SBOM per platform image, attached as a signed in-toto
+      # attestation to that platform's manifest digest.
+      - name: Generate and attest SBOMs
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p sbom
+          docker buildx imagetools inspect --raw "${IMAGE}@${DIGEST}" \
+            | jq -r '.manifests[] | select(.platform.os == "linux") | "\(.platform.architecture) \(.digest)"' \
+            | while read -r arch digest; do
+                syft scan "registry:${IMAGE}@${digest}" --output "spdx-json=sbom/gitwebhookproxy-linux-${arch}.spdx.json"
+                cosign attest --yes --type spdxjson \
+                  --predicate "sbom/gitwebhookproxy-linux-${arch}.spdx.json" "${IMAGE}@${digest}"
+                cosign verify-attestation --type spdxjson \
+                  --certificate-identity "$CERT_IDENTITY" --certificate-oidc-issuer "$CERT_ISSUER" \
+                  "${IMAGE}@${digest}" >/dev/null
+              done
+
+      - name: Verify image signature
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign verify \
+            --certificate-identity "$CERT_IDENTITY" \
+            --certificate-oidc-issuer "$CERT_ISSUER" \
+            --certificate-github-workflow-repository "$GITHUB_REPOSITORY" \
+            --certificate-github-workflow-trigger push \
+            "${IMAGE}@${DIGEST}" >/dev/null
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-sbom
+          path: sbom/
+
+  chart:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # cosign keyless signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
+
+      # helm push stores '+' build metadata as '_' in the OCI tag.
+      - name: Package and push chart
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "$REGISTRY_TOKEN" | helm registry login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          helm package "$CHART_DIR" --version "$version" --app-version "$version" --destination dist
+          helm push "dist/gitwebhookproxy-${version}.tgz" "$CHART_REPO" 2>&1 | tee push.log
+          digest="$(awk '/^Digest:/ {print $2}' push.log)"
+          test -n "$digest"
+          cosign sign --yes "${CHART_REPO#oci://}/gitwebhookproxy@${digest}"
+          cosign verify \
+            --certificate-identity "$CERT_IDENTITY" \
+            --certificate-oidc-issuer "$CERT_ISSUER" \
+            "${CHART_REPO#oci://}/gitwebhookproxy@${digest}" >/dev/null

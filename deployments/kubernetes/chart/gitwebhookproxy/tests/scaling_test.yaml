@@ -1,0 +1,79 @@
+suite: autoscaling and disruption budget
+templates:
+  - templates/hpa.yaml
+  - templates/pdb.yaml
+  - templates/networkpolicy.yaml
+release:
+  name: gwp
+  namespace: default
+set:
+  config.upstreamURL: http://jenkins.example.svc:8080
+tests:
+  - it: renders no HPA, PDB or NetworkPolicy by default
+    asserts:
+      - template: templates/hpa.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/pdb.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/networkpolicy.yaml
+        hasDocuments:
+          count: 0
+
+  - it: renders the HPA when enabled
+    template: templates/hpa.yaml
+    set:
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 4
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - isAPIVersion:
+          of: autoscaling/v2
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 4
+      - equal:
+          path: spec.scaleTargetRef.name
+          value: gwp-gitwebhookproxy
+
+  - it: renders the PDB with minAvailable by default
+    template: templates/pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - notExists:
+          path: spec.maxUnavailable
+
+  - it: renders the PDB with maxUnavailable when set
+    template: templates/pdb.yaml
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.maxUnavailable: 1
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - notExists:
+          path: spec.minAvailable
+
+  - it: renders the NetworkPolicy when enabled
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes
+          value: [Ingress]

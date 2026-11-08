@@ -2,6 +2,7 @@ package providers
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -242,6 +243,76 @@ func TestGitlabProvider_Validate(t *testing.T) {
 			}
 			if got := p.Validate(tt.args.hook); got != tt.want {
 				t.Errorf("GitlabProvider.Validate() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGitlabProvider_ValidateTrimsWhitespace(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		secret string
+		token  string
+		want   bool
+	}{
+		{name: "token with surrounding whitespace", secret: gitlabTestSecret, token: "  " + gitlabTestSecret + "\n", want: true},
+		{name: "secret with surrounding whitespace", secret: " " + gitlabTestSecret + " ", token: gitlabTestSecret, want: true},
+		{name: "token is a prefix of the secret", secret: gitlabTestSecret, token: gitlabTestSecret[:len(gitlabTestSecret)-1], want: false},
+		{name: "secret is a prefix of the token", secret: gitlabTestSecret, token: gitlabTestSecret + "x", want: false},
+		{name: "case differs", secret: gitlabTestSecret, token: strings.ToUpper(gitlabTestSecret), want: false},
+		{name: "whitespace only token", secret: gitlabTestSecret, token: "   ", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			p := &GitlabProvider{secret: tt.secret}
+			hook := Hook{Headers: map[string]string{XGitlabToken: tt.token}}
+			if got := p.Validate(hook); got != tt.want {
+				t.Errorf("Validate() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGitlabProvider_GetHeaderKeysWithSecret(t *testing.T) {
+	t.Parallel()
+	p := &GitlabProvider{secret: gitlabTestSecret}
+	want := []string{XGitlabEvent, XGitlabToken, ContentTypeHeader}
+	if got := p.GetHeaderKeys(); !reflect.DeepEqual(got, want) {
+		t.Errorf("GetHeaderKeys() = %v, want %v", got, want)
+	}
+}
+
+func TestGitlabProvider_GetProviderName(t *testing.T) {
+	t.Parallel()
+	if got := (&GitlabProvider{}).GetProviderName(); got != GitlabName {
+		t.Errorf("GetProviderName() = %q, want %q", got, GitlabName)
+	}
+}
+
+func TestGitlabProvider_GetCommitter(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		event   string
+		payload string
+		want    string
+	}{
+		{name: "push hook", event: string(GitlabPushEvent), payload: `{"user_username":"jsmith"}`, want: "jsmith"},
+		{name: "merge request hook is not supported", event: string(GitlabMergeRequestEvent), payload: `{"user_username":"jsmith"}`, want: ""},
+		{name: "unknown event", event: "Tag Push Hook", payload: `{"user_username":"jsmith"}`, want: ""},
+		{name: "invalid json", event: string(GitlabPushEvent), payload: `not json`, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			hook := Hook{
+				Headers: map[string]string{XGitlabEvent: tt.event},
+				Payload: []byte(tt.payload),
+			}
+			if got := (&GitlabProvider{}).GetCommitter(hook); got != tt.want {
+				t.Errorf("GetCommitter() = %q, want %q", got, tt.want)
 			}
 		})
 	}

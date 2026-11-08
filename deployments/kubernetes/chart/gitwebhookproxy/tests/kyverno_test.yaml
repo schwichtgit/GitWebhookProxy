@@ -1,0 +1,60 @@
+suite: kyverno image verification policy
+templates:
+  - templates/kyverno-policy.yaml
+release:
+  name: gwp
+  namespace: webhooks
+set:
+  config.upstreamURL: http://jenkins.example.svc:8080
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a namespaced Policy in Audit mode
+    set:
+      kyverno.enabled: true
+    asserts:
+      - isKind:
+          of: Policy
+      - isAPIVersion:
+          of: kyverno.io/v1
+      - equal:
+          path: metadata.namespace
+          value: webhooks
+      - equal:
+          path: spec.rules[0].verifyImages[0].type
+          value: SigstoreBundle
+      - equal:
+          path: spec.rules[0].verifyImages[0].imageReferences[0]
+          value: ghcr.io/schwichtgit/gitwebhookproxy*
+      - equal:
+          path: spec.rules[0].verifyImages[0].failureAction
+          value: Audit
+      - equal:
+          path: spec.rules[0].verifyImages[0].attestors[0].entries[0].keyless.issuer
+          value: https://token.actions.githubusercontent.com
+      - equal:
+          path: spec.rules[0].verifyImages[1].attestations[0].type
+          value: https://spdx.dev/Document
+
+  - it: enforces and skips the SBOM check when configured
+    set:
+      kyverno.enabled: true
+      kyverno.failureAction: Enforce
+      kyverno.verifySBOM: false
+    asserts:
+      - equal:
+          path: spec.rules[0].verifyImages[0].failureAction
+          value: Enforce
+      - lengthEqual:
+          path: spec.rules[0].verifyImages
+          count: 1
+
+  - it: rejects an unknown failureAction
+    set:
+      kyverno.enabled: true
+      kyverno.failureAction: Deny
+    asserts:
+      - failedTemplate: {}

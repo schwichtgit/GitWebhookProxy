@@ -1,0 +1,93 @@
+config:
+  provider: gitlab
+  upstreamURL: https://jenkins.example.com
+  allowedPaths: /project,/github-webhook
+  ignoredUsers: bot-user
+  allowedUsers: alice,bob
+secret:
+  value: changeme
+extraEnv:
+  - name: GODEBUG
+    value: fips140=on
+podAnnotations:
+  example.com/team: platform
+podLabels:
+  example.com/tier: edge
+service:
+  type: NodePort
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: gwp-ip
+  hosts:
+    - host: gwp.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: gwp-tls
+      hosts:
+        - gwp.example.com
+autoscaling:
+  enabled: true
+  targetMemoryUtilizationPercentage: 80
+podDisruptionBudget:
+  enabled: true
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - ports:
+        - port: 443
+          protocol: TCP
+nodeSelector:
+  kubernetes.io/os: linux
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: edge
+    effect: NoSchedule
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: gitwebhookproxy
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+priorityClassName: high-priority
+gke:
+  backendConfig:
+    enabled: true
+    extraSpec:
+      timeoutSec: 30
+      logging:
+        enable: true
+        sampleRate: 1.0
+  frontendConfig:
+    enabled: true
+    sslPolicy: modern-ssl-policy
+    redirectToHttps:
+      enabled: true
+
+kyverno:
+  enabled: true
+  failureAction: Enforce

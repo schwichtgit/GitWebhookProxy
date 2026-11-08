@@ -1,47 +1,61 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
+
+project_name: gitwebhookproxy
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
-    - go mod tidy
+    - go mod download
 
 builds:
-  - env:
+  - main: .
+    binary: gitwebhookproxy
+    env:
       - CGO_ENABLED=0
+      # CMVP-validated Go Cryptographic Module (certificate #5247); enables FIPS 140-3 mode.
+      - GOFIPS140=v1.0.0
     goos:
-      - windows
-      - darwin
       - linux
+      - darwin
+      - windows
     goarch:
-      - "386"
-      - "amd64"
-      - "arm"
-      - "arm64"
-    # Binary name
-    binary: "{{ .ProjectName }}"
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
 
 archives:
-  - format: tar.gz
-    # this name template makes the OS and Arch compatible with the results of `uname`.
-    name_template: >-
-      {{ .ProjectName }}_v{{ .Version }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
 
 checksum:
-  name_template: "{{ .ProjectName }}_v{{ .Version }}_checksums.txt"
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+# SPDX SBOM per archive, generated with syft.
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.spdx.json"
+    args: ["$artifact", "--output", "spdx-json=$document"]
+
+# Keyless cosign signature over the checksums file. The checksums cover the
+# archives and the SBOMs, so verifying this one bundle verifies all of them.
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
@@ -54,10 +68,7 @@ changelog:
       - Merge pull request
       - Merge branch
 
-# GitHub token configuration
-env_files:
-  github_token: /home/jenkins/.apitoken/hub
-
-# The lines beneath this are called `modelines`. See `:help modeline`
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+release:
+  github:
+    owner: schwichtgit
+    name: GitWebhookProxy

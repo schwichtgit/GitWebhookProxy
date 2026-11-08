@@ -2,7 +2,9 @@ package providers
 
 import (
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // G505: X-Hub-Signature is defined as HMAC-SHA1 and kept for senders without X-Hub-Signature-256
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,15 +19,18 @@ const (
 
 // Header constants
 const (
-	XHubSignature   = "X-Hub-Signature"
-	XGitHubEvent    = "X-GitHub-Event"
-	XGitHubDelivery = "X-GitHub-Delivery"
+	XHubSignature    = "X-Hub-Signature"
+	XHubSignature256 = "X-Hub-Signature-256"
+	XGitHubEvent     = "X-GitHub-Event"
+	XGitHubDelivery  = "X-GitHub-Delivery"
 )
 
 const (
-	SignaturePrefix = "sha1="
-	SignatureLength = 45
-	GithubName      = "github"
+	SignaturePrefix    = "sha1="
+	SignatureLength    = 45
+	Signature256Prefix = "sha256="
+	Signature256Length = 71
+	GithubName         = "github"
 )
 
 type GithubProvider struct {
@@ -39,15 +44,6 @@ func NewGithubProvider(secret string) (*GithubProvider, error) {
 }
 
 func (p *GithubProvider) GetHeaderKeys() []string {
-	if len(strings.TrimSpace(p.secret)) > 0 {
-		return []string{
-			XHubSignature,
-			XGitHubDelivery,
-			XGitHubEvent,
-			ContentTypeHeader,
-		}
-	}
-
 	return []string{
 		XGitHubDelivery,
 		XGitHubEvent,
@@ -55,8 +51,26 @@ func (p *GithubProvider) GetHeaderKeys() []string {
 	}
 }
 
-// Github Signature Validation:
+// GetOptionalHeaderKeys returns the signature headers. They are copied into
+// the hook when present; Validate decides whether the ones present suffice.
+func (p *GithubProvider) GetOptionalHeaderKeys() []string {
+	if len(strings.TrimSpace(p.secret)) > 0 {
+		return []string{XHubSignature256, XHubSignature}
+	}
+	return nil
+}
+
+// Validate checks the webhook signature. X-Hub-Signature-256 (HMAC-SHA256) is
+// used when present; X-Hub-Signature (HMAC-SHA1) only when it is absent.
 func (p *GithubProvider) Validate(hook Hook) bool {
+	if signature, ok := hook.Headers[XHubSignature256]; ok {
+		if len(signature) != Signature256Length ||
+			!strings.HasPrefix(signature, Signature256Prefix) {
+			return false
+		}
+		return IsValidPayloadSHA256(p.secret, signature[len(Signature256Prefix):], hook.Payload)
+	}
+
 	githubSignature := hook.Headers[XHubSignature]
 	if len(githubSignature) != SignatureLength ||
 		!strings.HasPrefix(githubSignature, SignaturePrefix) {
@@ -106,7 +120,6 @@ func (p *GithubProvider) GetCommitter(hook Hook) string {
 // the hash computed by GitHub sent as a header
 func IsValidPayload(secret, headerHash string, payload []byte) bool {
 	hash := HashPayload(secret, payload)
-	log.Printf("Calculated Hash: %s", hash)
 	return hmac.Equal(
 		[]byte(hash),
 		[]byte(headerHash),
@@ -121,4 +134,18 @@ func HashPayload(secret string, playloadBody []byte) string {
 	hm.Write(playloadBody)
 	sum := hm.Sum(nil)
 	return fmt.Sprintf("%x", sum)
+}
+
+// IsValidPayloadSHA256 reports whether headerHash is the hex encoded
+// HMAC-SHA256 of payload under secret.
+func IsValidPayloadSHA256(secret, headerHash string, payload []byte) bool {
+	return hmac.Equal([]byte(HashPayloadSHA256(secret, payload)), []byte(headerHash))
+}
+
+// HashPayloadSHA256 returns the hex encoded HMAC-SHA256 of payload under
+// secret, as sent by GitHub in X-Hub-Signature-256.
+func HashPayloadSHA256(secret string, payload []byte) string {
+	hm := hmac.New(sha256.New, []byte(secret))
+	hm.Write(payload)
+	return hex.EncodeToString(hm.Sum(nil))
 }

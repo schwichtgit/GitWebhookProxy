@@ -1,0 +1,33 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # standard: errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - gosec
+    - misspell
+    - revive
+  settings:
+    gosec:
+      excludes:
+        - G101 # header names such as X-Gitlab-Token are not credentials
+        - G704 # forwarding requests to a configured upstream is the purpose of the proxy
+  exclusions:
+    presets:
+      - common-false-positives
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+      # Doc-comment and initialism rules; renaming the exported payload fields would break the API.
+      - linters:
+          - revive
+        text: "^(exported|package-comments|var-naming):"
+
+formatters:
+  enable:
+    - gofmt

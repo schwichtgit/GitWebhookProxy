@@ -1,0 +1,17 @@
+# Only go.mod, go.sum and Go sources (including pkg/assets/web) are needed.
+.git
+.github
+.claude
+.idea
+.vscode
+assets
+build
+deployments
+docs
+dist
+*.md
+coverage.out
+gitwebhookproxy
+GitWebhookProxy
+.cache
+.mise

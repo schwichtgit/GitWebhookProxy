@@ -1,135 +1,178 @@
-# note: call scripts from /scripts
+BINARY     ?= gitwebhookproxy
+IMAGE      ?= ghcr.io/schwichtgit/gitwebhookproxy
+VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT     ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
+# OCI tags cannot contain '+'.
+IMAGE_TAG  ?= $(subst +,_,$(VERSION))
 
-.PHONY: default build builder-image binary-image container test stop clean-images clean push apply deploy
+GO         ?= go
+GOLANGCI_LINT ?= golangci-lint
+# Build against the CMVP-validated Go Cryptographic Module (certificate #5247).
+GOFIPS140  ?= v1.0.0
+GOPROXY    ?=
+LDFLAGS    ?= -s -w -X main.version=$(VERSION)
 
-BUILDER ?= gitwebhookproxy-builder
-BINARY ?= GitWebhookProxy
-DOCKER_IMAGE ?= stakater/gitwebhookproxy
-REGISTRY ?= docker.io
+COVER_MIN  ?= 85
+PACKAGES   ?= ./...
 
-# Default platforms to build for
-PLATFORMS ?= linux/amd64 linux/arm64
-# Default value "dev"
-DOCKER_TAG ?= dev
-REPOSITORY = ${DOCKER_IMAGE}:${DOCKER_TAG}
+DOCKERFILE ?= build/package/Dockerfile
+# Single platform by default so the image can be loaded locally.
+# Set PLATFORMS=linux/amd64,linux/arm64 for a multi-arch build (requires PUSH=1 with docker).
+PLATFORMS  ?= linux/$(shell $(GO) env GOARCH)
+PUSH       ?= 0
 
-VERSION=$(shell cat .VERSION)
-BUILD=
+# Prefer docker buildx, fall back to podman.
+CONTAINER_CLI ?= $(shell if docker buildx version >/dev/null 2>&1; then echo docker; elif command -v podman >/dev/null 2>&1; then echo podman; else echo docker; fi)
 
-GOCMD = go
-GOFLAGS ?= $(GOFLAGS:)
-LDFLAGS =
+CHART_DIR  ?= deployments/kubernetes/chart/gitwebhookproxy
+# Required chart values for lint and template.
+HELM_ARGS  ?= --set config.upstreamURL=https://example.com
+CHART_VALUES = $(wildcard $(CHART_DIR)/ci/*-values.yaml)
+KUBE_VERSIONS ?= 1.30.0 1.33.0
 
-# Detect container CLI (docker or podman)
-CONTAINER_CLI := $(shell command -v podman 2> /dev/null || echo docker)
-BUILD_DATE := $(shell date -u +'%Y%m%d%H%M%S')
+# Tools come from mise.toml (run `make tools`). These two are not in the mise
+# registry and are pinned here.
+HELM_UNITTEST_VERSION ?= v1.2.1
+# kyverno/policies, branch release-1.19
+KYVERNO_POLICIES_REF  ?= 282e77f6d54e1e1a636190ff2dacc3d02c2d689c
+CACHE_DIR  ?= .cache
 
-goproxy := https://proxy.golang.org
-golang_fips140_version=v1.0.0
+# Trivy gates: fail on fixable HIGH/CRITICAL vulnerabilities, on secrets of
+# any severity, and on HIGH/CRITICAL misconfigurations.
+TRIVY_SEVERITY ?= HIGH,CRITICAL
 
-default: build test
+comma := ,
 
-install:
-	"$(GOCMD)" mod download
+export GOFIPS140
 
-build:
-	"$(GOCMD)" build ${GOFLAGS} ${LDFLAGS} -o "${BINARY}"
+.DEFAULT_GOAL := help
 
-# Legacy builder image method (single architecture)
-builder-image:
-	@$(CONTAINER_CLI) build --network host -t "${BUILDER}" -f build/package/Dockerfile.build .
+.PHONY: help tools qa build test cover lint vuln fmt fmt-check vet tidy-check \
+	docs-lint actionlint hadolint helm-lint helm-unittest kubeconform \
+	kyverno-check secret-scan config-scan image docker image-scan clean
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target> [VAR=value]\n\nTargets:\n"} \
+		/^[a-zA-Z_-]+:.*##/ {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@printf "\nVariables: VERSION=%s IMAGE=%s PLATFORMS=%s CONTAINER_CLI=%s GOFIPS140=%s\n" \
+		"$(VERSION)" "$(IMAGE)" "$(PLATFORMS)" "$(CONTAINER_CLI)" "$(GOFIPS140)"
 
-# Legacy binary image method (single architecture)
-binary-image: builder-image
-	@$(CONTAINER_CLI) run --network host --rm "${BUILDER}" | $(CONTAINER_CLI) build --network host -t "${REPOSITORY}" -f build/package/Dockerfile.run -
+tools: ## Install the pinned toolchain from mise.toml
+	mise install
 
-# Multi-architecture container build
-container:
-	@if ! echo "$(CONTAINER_CLI)" | grep -Eq '/podman$$|^podman$$'; then \
-		echo "Error: the container target for a multi-arch containers build requires 'podman' to be installed"; \
-		exit 1; \
-	fi
-	@echo "Building multi-architecture container using $(CONTAINER_CLI)"
-	@$(eval manifest_digest_f := $(shell mktemp /tmp/manifest-digest.XXXXXX))
+qa: fmt-check vet tidy-check lint vuln docs-lint actionlint hadolint helm-lint helm-unittest kubeconform kyverno-check secret-scan config-scan ## Run all static QA gates
 
-	# Create manifest
-	@if ! $(CONTAINER_CLI) manifest create "${REPOSITORY}-b$(BUILD_DATE)"; then \
-		echo "FATAL: error creating manifest" 1>&2 ; \
-		exit 1 ; \
-	fi
+build: ## Build the binary
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) .
 
-	# Build for each platform
-	@for platform in $(PLATFORMS); do \
-		echo "Building $(REPOSITORY)-b$(BUILD_DATE) for $${platform}..." ; \
-		arch=$$(basename $${platform}) ; \
-		container_digest_f=$$(mktemp /tmp/container-digest-$${arch}.XXXXXX) ; \
-		if ! $(CONTAINER_CLI) build \
-			--manifest="${REPOSITORY}-b$(BUILD_DATE)" \
-			--no-cache \
-			--rm=true \
-			--platform $$platform \
-			--iidfile $${container_digest_f} \
-			--file build/package/Dockerfile.multi \
-			--env=GOFIPS140="$(golang_fips140_version)" \
-			--env=GOPROXY="$(goproxy)" \
-			--tag "${REPOSITORY}-b$(BUILD_DATE)-$$arch" . ;  then \
-				echo "FATAL: failed building ${REPOSITORY}-b$(BUILD_DATE)-$$arch." ; \
-				exit 1 ; \
-		fi ; \
-		DIGEST=$$(cat $${container_digest_f}) ;\
-		IMAGE_ID=$$(echo "$${DIGEST}" | sed 's#sha256:##') ;\
-		if [ -n "$(REGISTRY)" ]; then \
-			echo "INFO: pushing ${REPOSITORY}-b$(BUILD_DATE)-$$arch ($${IMAGE_ID}) to ${REGISTRY}" ; \
-			if ! $(CONTAINER_CLI) push $${IMAGE_ID} "docker://$(REGISTRY)/${REPOSITORY}-b$(BUILD_DATE)-$$arch"; then \
-				echo "FATAL: failed pushing container $${IMAGE_ID} to docker://$(REGISTRY)/${REPOSITORY}-b$(BUILD_DATE)-$$arch" ; \
-				exit 1 ; \
-			fi ; \
-		else \
-			echo "WARNING: Skip pushing ${REPOSITORY}-b$(BUILD_DATE)-$$arch to registry (as REGISTRY not defined)" ; \
-		fi; \
-		rm -f $${container_digest_f} ; \
+test: ## Run tests with the race detector
+	$(GO) test -race $(PACKAGES)
+
+cover: ## Run tests with coverage; fail below COVER_MIN percent
+	$(GO) test -race -covermode=atomic -coverprofile=coverage.out $(PACKAGES)
+	@total=$$($(GO) tool cover -func=coverage.out | awk '/^total:/ {sub("%", "", $$3); print $$3}'); \
+	echo "total coverage: $${total}% (minimum $(COVER_MIN)%)"; \
+	awk -v t="$${total}" -v m="$(COVER_MIN)" 'BEGIN {exit !(t >= m)}' || \
+		{ echo "coverage below $(COVER_MIN)%"; exit 1; }
+
+lint: ## Run golangci-lint
+	$(GOLANGCI_LINT) run
+
+vuln: ## Check dependencies for known vulnerabilities
+	govulncheck ./...
+
+fmt: ## Format Go sources
+	$(GO) fmt ./...
+
+fmt-check: ## Fail if Go sources are not gofmt-formatted
+	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "not formatted:"; echo "$$out"; exit 1; fi
+
+vet: ## Run go vet
+	$(GO) vet ./...
+
+tidy-check: ## Fail if go.mod or go.sum are not tidy
+	$(GO) mod tidy -diff
+
+image: ## Build the container image (PLATFORMS, PUSH=1 to push)
+ifeq ($(CONTAINER_CLI),podman)
+	podman build \
+		--platform $(PLATFORMS) \
+		--manifest $(IMAGE):$(IMAGE_TAG) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg REVISION=$(COMMIT) \
+		--build-arg GOFIPS140=$(GOFIPS140) \
+		--build-arg GOPROXY=$(GOPROXY) \
+		-f $(DOCKERFILE) .
+	@if [ "$(PUSH)" = "1" ]; then podman manifest push --all $(IMAGE):$(IMAGE_TAG) docker://$(IMAGE):$(IMAGE_TAG); fi
+else
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--tag $(IMAGE):$(IMAGE_TAG) \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg REVISION=$(COMMIT) \
+		--build-arg GOFIPS140=$(GOFIPS140) \
+		--build-arg GOPROXY=$(GOPROXY) \
+		$(if $(filter 1,$(PUSH)),--push,$(if $(findstring $(comma),$(PLATFORMS)),,--load)) \
+		-f $(DOCKERFILE) .
+endif
+
+docker: image ## Alias for image
+
+image-scan: ## Scan the image for fixable HIGH/CRITICAL CVEs and for secrets of any severity
+	trivy image --scanners vuln --severity $(TRIVY_SEVERITY) --ignore-unfixed \
+		--exit-code 1 $(IMAGE):$(IMAGE_TAG)
+	trivy image --scanners secret --exit-code 1 $(IMAGE):$(IMAGE_TAG)
+
+secret-scan: ## Scan the repository for committed secrets
+	trivy fs --scanners secret --exit-code 1 --skip-dirs $(CACHE_DIR) --skip-dirs .claude .
+
+config-scan: ## Scan the Dockerfile, Helm chart and workflows for misconfigurations
+	trivy config --severity $(TRIVY_SEVERITY) --exit-code 1 \
+		--skip-dirs $(CACHE_DIR) --skip-dirs .claude \
+		--helm-set config.upstreamURL=https://example.com .
+
+docs-lint: ## Lint and format-check markdown (markdownlint-cli2, prettier)
+	markdownlint-cli2
+	prettier --check '**/*.md'
+
+actionlint: ## Lint GitHub Actions workflows (uses shellcheck)
+	actionlint
+
+hadolint: ## Lint the Dockerfile
+	hadolint $(DOCKERFILE)
+
+helm-lint: ## Lint and render the Helm chart
+	helm lint --strict $(HELM_ARGS) $(CHART_DIR)
+	helm template gitwebhookproxy $(CHART_DIR) $(HELM_ARGS) >/dev/null
+	@for f in $(CHART_VALUES); do \
+		echo "helm template -f $$f"; \
+		helm template gitwebhookproxy $(CHART_DIR) -f $$f >/dev/null || exit 1; \
 	done
 
-	# Push container list manifests to registry if REGISTRY is defined
-	@if [ -n "$(REGISTRY)" ]; then \
-		for m in "$(REGISTRY)/${REPOSITORY}-b$(BUILD_DATE)" "$(REGISTRY)/${REPOSITORY}"; do \
-			echo "Pushing manifest to $$m" ; \
-			if ! $(CONTAINER_CLI) manifest push --digestfile="$(manifest_digest_f)" "${REPOSITORY}-b$(BUILD_DATE)" "docker://$$m"; then \
-				echo "FATAL: error pushing list manifest $$m" 1>&2 ; \
-				exit 1 ; \
-			fi; \
-		done ; \
-	else \
-		echo "Skip pushing the container list manifest to registry (as REGISTRY not defined)" ; \
-	fi
+helm-unittest: ## Run the chart unit tests (installs the helm-unittest plugin if missing)
+	@helm plugin list | grep -q '^unittest' || \
+		helm plugin install https://github.com/helm-unittest/helm-unittest --version $(HELM_UNITTEST_VERSION) --verify=false
+	helm unittest $(CHART_DIR)
 
-	# Clean up
-	@rm -f $(manifest_digest_f)
-	@echo "Cleaning up dangling images"
-	@for container in $$($(CONTAINER_CLI) images -q -f "dangling=true"); do \
-		$(CONTAINER_CLI) rmi $${container} || true; \
+kubeconform: ## Validate rendered manifests against Kubernetes schemas
+	@for k8s in $(KUBE_VERSIONS); do for f in $(CHART_VALUES); do \
+		echo "Kubernetes $$k8s, values $$f"; \
+		helm template gitwebhookproxy $(CHART_DIR) -f $$f --kube-version $$k8s | \
+			kubeconform -strict -summary -kubernetes-version $$k8s -ignore-missing-schemas || exit 1; \
+	done; done
+
+kyverno-check: ## Check rendered manifests against Kyverno Pod Security policies
+	@if [ ! -d $(CACHE_DIR)/kyverno-policies/.git ]; then \
+		git clone --quiet https://github.com/kyverno/policies.git $(CACHE_DIR)/kyverno-policies; fi
+	@git -C $(CACHE_DIR)/kyverno-policies fetch --quiet origin $(KYVERNO_POLICIES_REF) 2>/dev/null || true
+	@git -C $(CACHE_DIR)/kyverno-policies checkout --quiet $(KYVERNO_POLICIES_REF)
+	@{ kubectl kustomize $(CACHE_DIR)/kyverno-policies/pod-security/baseline; echo "---"; \
+		kubectl kustomize $(CACHE_DIR)/kyverno-policies/pod-security/restricted; } > $(CACHE_DIR)/pss.yaml
+	@for f in $(CHART_VALUES); do \
+		echo "values $$f"; \
+		helm template gitwebhookproxy $(CHART_DIR) -f $$f > $(CACHE_DIR)/rendered.yaml || exit 1; \
+		kyverno apply $(CACHE_DIR)/pss.yaml --resource $(CACHE_DIR)/rendered.yaml --remove-color || exit 1; \
 	done
 
-test:
-	"$(GOCMD)" test -v ./...
-
-stop:
-	@$(CONTAINER_CLI) stop "${BINARY}" || true
-
-clean-images: stop
-	@$(CONTAINER_CLI) rmi "${BUILDER}" "${BINARY}" || true
-
-clean:
-	"$(GOCMD)" clean -i
-
-push: ## push the latest Docker image to DockerHub
-	$(CONTAINER_CLI) push $(REPOSITORY)
-
-apply:
-	kubectl apply -f deployments/manifests/
-
-# Legacy deploy method
-deploy-legacy: binary-image push apply
-
-# New multi-arch deploy method
-deploy: container apply
+clean: ## Remove build and test outputs
+	rm -f $(BINARY) coverage.out
+	rm -rf dist $(CACHE_DIR)

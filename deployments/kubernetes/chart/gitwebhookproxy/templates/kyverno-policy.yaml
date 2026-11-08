@@ -1,0 +1,58 @@
+{{- if .Values.kyverno.enabled }}
+{{- $attestor := dict "issuer" .Values.kyverno.keyless.issuer "subjectRegExp" .Values.kyverno.keyless.subjectRegExp "rekor" (dict "url" .Values.kyverno.keyless.rekorURL) }}
+# Admits the proxy image only with a keyless cosign signature (and, if
+# enabled, a signed SPDX SBOM attestation) from the release workflow.
+# Requires Kyverno 1.18 or later (verifyImages type SigstoreBundle reads
+# cosign v3 bundles).
+apiVersion: kyverno.io/v1
+kind: Policy
+metadata:
+  name: {{ include "gitwebhookproxy.fullname" . }}-verify-image
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gitwebhookproxy.labels" . | nindent 4 }}
+  annotations:
+    pod-policies.kyverno.io/autogen-controllers: none
+    policies.kyverno.io/title: Verify gitwebhookproxy image
+    policies.kyverno.io/category: Software Supply Chain Security
+    policies.kyverno.io/subject: Pod
+spec:
+  background: false
+  webhookTimeoutSeconds: {{ .Values.kyverno.webhookTimeoutSeconds }}
+  rules:
+    - name: verify-signature
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      verifyImages:
+        - type: SigstoreBundle
+          imageReferences:
+            - {{ printf "%s*" .Values.image.repository | quote }}
+          failureAction: {{ .Values.kyverno.failureAction }}
+          mutateDigest: {{ .Values.kyverno.mutateDigest }}
+          required: true
+          attestors:
+            - entries:
+                - keyless:
+                    {{- toYaml $attestor | nindent 20 }}
+        {{- if .Values.kyverno.verifySBOM }}
+        - type: SigstoreBundle
+          imageReferences:
+            - {{ printf "%s*" .Values.image.repository | quote }}
+          failureAction: {{ .Values.kyverno.failureAction }}
+          mutateDigest: false
+          attestations:
+            - type: https://spdx.dev/Document
+              attestors:
+                - entries:
+                    - keyless:
+                        {{- toYaml $attestor | nindent 24 }}
+              conditions:
+                - all:
+                    - key: "{{`{{ spdxVersion }}`}}"
+                      operator: Equals
+                      value: SPDX-2.3
+        {{- end }}
+{{- end }}

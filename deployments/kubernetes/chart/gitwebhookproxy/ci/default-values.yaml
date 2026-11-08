@@ -1,0 +1,2 @@
+config:
+  upstreamURL: http://jenkins.example.svc:8080
