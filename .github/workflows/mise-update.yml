@@ -50,14 +50,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git diff --quiet -- mise.toml mise.lock; then
+          if git diff --quiet -- mise.toml mise.lock && [ -z "$(git status --porcelain -- .mise/locks)" ]; then
             echo "Tool pins are current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -C "$BRANCH"
-          git add mise.toml mise.lock
+          git add mise.toml mise.lock .mise/locks
           git commit -m "deps: bump mise tool versions" -m "$(git diff --cached -U0 -- mise.toml | grep '^[-+][^-+]' || true)"
           git push --force origin "$BRANCH"
           if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
