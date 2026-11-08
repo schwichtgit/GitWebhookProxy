@@ -4,6 +4,14 @@ All notable changes to this fork are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-11-08
+
+### Fixed
+
+- Release: the Helm chart signature could not be pushed because cosign had
+  no registry credentials (`helm registry login` does not write the Docker
+  config). Chart 0.3.0 was published without a signature; use 0.3.1.
+
 ## [0.3.0] - 2026-11-08
 
 First release of the fork `schwichtgit/GitWebhookProxy`.
@@ -110,4 +118,5 @@ Read these before upgrading from upstream 0.2.x:
 Releases up to v0.2.79 were published by
 [stakater/GitWebhookProxy](https://github.com/stakater/GitWebhookProxy/releases).
 
+[0.3.1]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.1
 [0.3.0]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.0

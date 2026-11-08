@@ -176,6 +176,14 @@ jobs:
           install: true
           cache: true
 
+      # cosign reads registry credentials from the Docker config; helm registry
+      # login alone is not enough for pushing the signature.
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       # helm push stores '+' build metadata as '_' in the OCI tag.
       - name: Package and push chart
         env:
