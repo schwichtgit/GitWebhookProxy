@@ -1,0 +1,18 @@
+# Default owner
+*                          @schwichtgit
+
+# Build, CI, release and supply chain
+/.github/                  @schwichtgit
+/build/                    @schwichtgit
+/Makefile                  @schwichtgit
+/mise.toml                 @schwichtgit
+/mise.lock                 @schwichtgit
+/.mise/                    @schwichtgit
+/.goreleaser.yaml          @schwichtgit
+
+# Webhook validation and forwarding
+/pkg/providers/            @schwichtgit
+/pkg/proxy/                @schwichtgit
+
+# Deployment
+/deployments/              @schwichtgit
