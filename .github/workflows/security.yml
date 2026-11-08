@@ -1,0 +1,163 @@
+name: security
+
+# Scheduled scans that catch vulnerabilities disclosed after a change was
+# merged or released. Results go to the repository Security tab (SARIF);
+# fixable HIGH/CRITICAL image findings and reachable Go vulnerabilities fail
+# the job. Per-change scans run in ci.yml.
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/security.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/schwichtgit/gitwebhookproxy
+  MISE_VERSION: 2026.11.3
+
+jobs:
+  release:
+    name: latest release
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Latest release: $tag"
+
+  released-image:
+    name: released image (${{ matrix.platform }})
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy scan (SARIF)
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          trivy image --platform "$PLATFORM" --scanners vuln,secret \
+            --format sarif --output trivy-image.sarif "${IMAGE}:${TAG#v}"
+
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: always() && hashFiles('trivy-image.sarif') != ''
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image-${{ matrix.platform }}
+
+      - name: Gate on fixable HIGH/CRITICAL CVEs and secrets
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          trivy image --platform "$PLATFORM" --scanners vuln --severity HIGH,CRITICAL \
+            --ignore-unfixed --exit-code 1 "${IMAGE}:${TAG#v}"
+          trivy image --platform "$PLATFORM" --scanners secret --exit-code 1 "${IMAGE}:${TAG#v}"
+
+  go-vulns:
+    name: govulncheck (${{ matrix.ref == '' && 'default branch' || matrix.ref }})
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Empty ref is the triggering ref (the default branch on schedule).
+        ref: ["", "release"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ matrix.ref == 'release' && needs.release.outputs.tag || '' }}
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
+
+      - name: govulncheck (SARIF)
+        run: govulncheck -format sarif ./... > govulncheck.sarif
+
+      # SARIF upload is skipped for the release ref: code scanning tracks the
+      # default branch, and the release tag result is reported by the gate.
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: always() && matrix.ref == '' && hashFiles('govulncheck.sarif') != ''
+        with:
+          sarif_file: govulncheck.sarif
+          category: govulncheck
+
+      - name: Gate on reachable vulnerabilities
+        run: govulncheck ./...
+
+  repository:
+    name: repository secrets and misconfigurations
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: true
+          cache: true
+
+      - name: Trivy fs and config scan (SARIF)
+        run: |
+          trivy fs --scanners secret,misconfig \
+            --helm-set config.upstreamURL=https://example.com \
+            --format sarif --output trivy-repo.sarif .
+
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        if: always() && hashFiles('trivy-repo.sarif') != ''
+        with:
+          sarif_file: trivy-repo.sarif
+          category: trivy-repository
+
+      - name: Gate
+        run: make secret-scan config-scan

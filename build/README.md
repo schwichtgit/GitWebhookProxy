@@ -133,6 +133,20 @@ See <https://go.dev/doc/security/fips140>.
   `make image-scan` on the host-architecture image (trivy CVE and secret
   scan)
 
+## Scheduled security scans
+
+`.github/workflows/security.yml` runs every Monday, on demand
+(`workflow_dispatch`), and on pull requests that change it:
+
+- trivy scan of the latest released image, per platform (CVEs and secrets)
+- govulncheck on the default branch and on the latest release tag
+- trivy secret and misconfiguration scan of the repository
+
+Results are uploaded to the Security tab as SARIF. Fixable HIGH/CRITICAL CVEs
+or secrets in the released image, and reachable Go vulnerabilities, fail the
+job. A failure means a new advisory affects the current release: fix it and
+cut a patch release (see RUNBOOK.md, Vulnerability response).
+
 ## Release
 
 Push a tag `vX.Y.Z`. `.github/workflows/release.yml` then:
