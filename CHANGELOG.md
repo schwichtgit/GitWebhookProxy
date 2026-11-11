@@ -4,13 +4,25 @@ All notable changes to this fork are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.2] - 2026-11-10
+
+Maintenance release. No changes to behavior, flags or chart values.
 
 ### Changed
 
-- Go 1.27.4 (go.mod, mise toolchain and the `golang:1.27.4-alpine3.24`
-  builder image, pinned by digest). govulncheck reports no known
-  vulnerabilities.
+- Built with Go 1.27.4 (go.mod, mise toolchain and the
+  `golang:1.27.4-alpine3.24` builder image, pinned by digest). govulncheck
+  reports no known vulnerabilities.
+
+### Added (repository)
+
+- SECURITY.md with private vulnerability reporting, CODE_OF_CONDUCT.md,
+  CODEOWNERS, issue forms and a pull request template.
+- Weekly security scan of the latest release (trivy image scan per
+  platform, govulncheck, repository secret and misconfiguration scan) with
+  results in the Security tab.
+- Dependabot cooldown for version updates; mise tool bumps skip versions
+  published in the last 7 days.
 
 ## [0.3.1] - 2026-11-08
 
@@ -126,5 +138,6 @@ Read these before upgrading from upstream 0.2.x:
 Releases up to v0.2.79 were published by
 [stakater/GitWebhookProxy](https://github.com/stakater/GitWebhookProxy/releases).
 
+[0.3.2]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.2
 [0.3.1]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.1
 [0.3.0]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.0
