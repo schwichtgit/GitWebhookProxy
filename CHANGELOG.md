@@ -4,6 +4,14 @@ All notable changes to this fork are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Go 1.27.4 (go.mod, mise toolchain and the `golang:1.27.4-alpine3.24`
+  builder image, pinned by digest). govulncheck reports no known
+  vulnerabilities.
+
 ## [0.3.1] - 2026-11-08
 
 ### Fixed
