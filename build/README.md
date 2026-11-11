@@ -79,7 +79,7 @@ Variables can be overridden on the command line, for example
   cross-compiles for `TARGETOS`/`TARGETARCH`, so multi-arch builds do not need
   emulation for the Go compile.
 - Module and build caches use BuildKit cache mounts.
-- The runtime image is `gcr.io/distroless/static-debian12:nonroot`. It has CA
+- The runtime image is `gcr.io/distroless/static-debian13:nonroot`. It has CA
   certificates, no shell, and runs as uid/gid 65532.
 - The binary is `/gitwebhookproxy` and is the entrypoint. Pass flags as
   container arguments or use the `GWP_*` environment variables.

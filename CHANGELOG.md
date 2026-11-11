@@ -15,6 +15,12 @@ Maintenance release. No changes to flags or chart values.
   `unsupported` (CodeQL go/clear-text-logging, code scanning alerts 8 and 9).
   The log line `Event type is not supported: <value>` is now
   `Event type is not supported`.
+- Runtime image moved from `gcr.io/distroless/static-debian12:nonroot` to
+  `gcr.io/distroless/static-debian13:nonroot` (pinned by digest). Debian 12
+  is in LTS and the distroless bookworm image carried unfixed advisories for
+  tzdata and ca-certificates (DLA-4792-1, DLA-4845-1, DLA-4854-1,
+  DLA-4867-1; code scanning alerts 4-7). The Debian 13 image has no known
+  vulnerabilities. The image still runs as uid 65532 with no shell.
 - Accepted Trivy configuration findings are documented in `.trivyignore`
   with the reason for each: KSV-0125 (trusted registries), KSV-0011 (no CPU
   limit by default) and DS-0026 (no HEALTHCHECK in a distroless image).
