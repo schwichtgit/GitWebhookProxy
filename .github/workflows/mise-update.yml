@@ -22,6 +22,8 @@ env:
   BRANCH: deps/mise-tools
   # Node stays on its LTS major; change this when moving to the next LTS.
   NODE_MAJOR: "26"
+  # Same cooldown as Dependabot: skip versions published in the last week.
+  MINIMUM_RELEASE_AGE: 7d
 
 jobs:
   bump:
@@ -42,8 +44,8 @@ jobs:
         run: |
           tools="$(mise ls --current --json | jq -r 'keys[]' | grep -vx node)"
           # shellcheck disable=SC2086 # one argument per tool
-          mise upgrade --bump $tools
-          MISE_PIN=1 mise upgrade --bump "node@${NODE_MAJOR}"
+          mise upgrade --bump --minimum-release-age "$MINIMUM_RELEASE_AGE" $tools
+          MISE_PIN=1 mise upgrade --bump --minimum-release-age "$MINIMUM_RELEASE_AGE" "node@${NODE_MAJOR}"
           mise lock
 
       - name: Open or update pull request
