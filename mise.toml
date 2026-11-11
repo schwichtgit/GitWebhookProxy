@@ -1,12 +1,13 @@
 # Development and CI toolchain. Every tool is pinned to an exact version;
-# Renovate updates these pins (mise manager) and mise.lock records checksums.
+# .github/workflows/mise-update.yml bumps these pins weekly and mise.lock
+# records checksums.
 # Install with: mise install
 
 [settings]
 lockfile = true
 
 [tools]
-go = "1.27.3"
+go = "1.27.4"
 node = "26.13.0"
 
 # Lint and test
