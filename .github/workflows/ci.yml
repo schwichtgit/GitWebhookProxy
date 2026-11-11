@@ -18,8 +18,41 @@ env:
   MISE_VERSION: 2026.11.3
 
 jobs:
+  # Pull requests that only touch documentation run the markdown checks and
+  # skip the rest. The workflow itself always runs, because its jobs are
+  # required checks; a skipped job counts as passed. Pushes to master always
+  # run everything.
+  changes:
+    name: detect changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docs-only: ${{ steps.files.outputs.docs-only }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            echo "docs-only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename')"
+          printf 'Changed files:\n%s\n' "$files"
+          # Documentation: markdown anywhere, docs/, LICENSE, issue templates.
+          code="$(grep -vE '\.md$|^docs/|^LICENSE$|^\.github/ISSUE_TEMPLATE/' <<<"$files" || true)"
+          if [ -z "$code" ]; then
+            echo "docs-only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs-only=false" >> "$GITHUB_OUTPUT"
+          fi
+
   qa:
     name: static QA gates
+    needs: changes
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,16 +63,25 @@ jobs:
         with:
           version: ${{ env.MISE_VERSION }}
           install: true
+          # Docs-only changes need just the markdown tools.
+          install_args: ${{ needs.changes.outputs.docs-only == 'true' && 'node npm:markdownlint-cli2 npm:prettier' || '' }}
           cache: true
+
+      - name: make docs-lint
+        if: needs.changes.outputs.docs-only == 'true'
+        run: make docs-lint
 
       # gofmt, go vet, go mod tidy, golangci-lint, govulncheck, markdownlint,
       # prettier, actionlint, hadolint, helm lint, helm-unittest, kubeconform,
       # Kyverno Pod Security, trivy secret and misconfiguration scans.
       - name: make qa
+        if: needs.changes.outputs.docs-only != 'true'
         run: make qa
 
   test:
     name: tests and coverage
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,6 +99,8 @@ jobs:
 
   image:
     name: container image
+    needs: changes
+    if: needs.changes.outputs.docs-only != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
