@@ -6,7 +6,18 @@ All notable changes to this fork are documented here. The format follows
 
 ## [0.3.2] - 2026-11-10
 
-Maintenance release. No changes to behavior, flags or chart values.
+Maintenance release. No changes to flags or chart values.
+
+### Security
+
+- The GitHub provider no longer logs the raw `X-GitHub-Event` header. The
+  value is untrusted input; supported events are logged by name, others as
+  `unsupported` (CodeQL go/clear-text-logging, code scanning alerts 8 and 9).
+  The log line `Event type is not supported: <value>` is now
+  `Event type is not supported`.
+- Accepted Trivy configuration findings are documented in `.trivyignore`
+  with the reason for each: KSV-0125 (trusted registries), KSV-0011 (no CPU
+  limit by default) and DS-0026 (no HEALTHCHECK in a distroless image).
 
 ### Changed
 
