@@ -416,3 +416,22 @@ func TestGithubProvider_GetCommitter(t *testing.T) {
 		})
 	}
 }
+
+func TestEventName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		event Event
+		want  string
+	}{
+		{GithubPushEvent, "push"},
+		{GithubPullRequestEvent, "pull_request"},
+		{GithubIssueCommentEvent, "issue_comment"},
+		{Event("ping"), "unsupported"},
+		{Event("push\nforged log line"), "unsupported"},
+	}
+	for _, tt := range tests {
+		if got := eventName(tt.event); got != tt.want {
+			t.Errorf("eventName(%q) = %q, want %q", tt.event, got, tt.want)
+		}
+	}
+}

@@ -90,7 +90,7 @@ func (p *GithubProvider) GetCommitter(hook Hook) string {
 	var pullRequestPayloadData GithubPullRequestPayload
 	var issueCommentPayloadData GithubIssueCommentPayload
 
-	log.Printf("Received event type: %v", eventType)
+	log.Printf("Received event type: %s", eventName(eventType))
 	switch eventType {
 	case GithubPushEvent:
 		if err := json.Unmarshal(hook.Payload, &pushPayloadData); err != nil {
@@ -112,8 +112,22 @@ func (p *GithubProvider) GetCommitter(hook Hook) string {
 		return issueCommentPayloadData.Comment.User.Login
 	}
 
-	log.Printf("Event type is not supported: %v", eventType)
+	log.Printf("Event type is not supported")
 	return ""
+}
+
+// eventName returns the name of a supported event, or "unsupported". The
+// raw X-GitHub-Event header value is untrusted and is not logged.
+func eventName(e Event) string {
+	switch e {
+	case GithubPushEvent:
+		return "push"
+	case GithubPullRequestEvent:
+		return "pull_request"
+	case GithubIssueCommentEvent:
+		return "issue_comment"
+	}
+	return "unsupported"
 }
 
 // IsValidPayload checks if the github payload's hash fits with

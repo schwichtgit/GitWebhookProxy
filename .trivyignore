@@ -1,0 +1,19 @@
+# Trivy findings accepted on purpose. Each entry states why. Trivy reads this
+# file in make image-scan, secret-scan, config-scan, CI and the security
+# workflow.
+
+# KSV-0125 (restrict images to trusted registries): the chart's only images
+# are ghcr.io/schwichtgit/gitwebhookproxy (signed, verifiable with the
+# optional Kyverno policy) and the digest-pinned busybox test pod. Registry
+# allowlists are a cluster policy, not a chart default.
+KSV-0125
+
+# KSV-0011 (CPU not limited): no CPU limit by default to avoid CFS
+# throttling of a latency-sensitive proxy; a CPU request and a memory limit
+# are set. Operators can set resources.limits.cpu.
+KSV-0011
+
+# DS-0026 (no HEALTHCHECK): the runtime image is distroless with no shell or
+# HTTP client. Kubernetes liveness/readiness probes on /health do this job;
+# Docker HEALTHCHECK is ignored by Kubernetes.
+DS-0026

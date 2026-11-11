@@ -4,13 +4,42 @@ All notable changes to this fork are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.2] - 2026-11-10
+
+Maintenance release. No changes to flags or chart values.
+
+### Security
+
+- The GitHub provider no longer logs the raw `X-GitHub-Event` header. The
+  value is untrusted input; supported events are logged by name, others as
+  `unsupported` (CodeQL go/clear-text-logging, code scanning alerts 8 and 9).
+  The log line `Event type is not supported: <value>` is now
+  `Event type is not supported`.
+- Runtime image moved from `gcr.io/distroless/static-debian12:nonroot` to
+  `gcr.io/distroless/static-debian13:nonroot` (pinned by digest). Debian 12
+  is in LTS and the distroless bookworm image carried unfixed advisories for
+  tzdata and ca-certificates (DLA-4792-1, DLA-4845-1, DLA-4854-1,
+  DLA-4867-1; code scanning alerts 4-7). The Debian 13 image has no known
+  vulnerabilities. The image still runs as uid 65532 with no shell.
+- Accepted Trivy configuration findings are documented in `.trivyignore`
+  with the reason for each: KSV-0125 (trusted registries), KSV-0011 (no CPU
+  limit by default) and DS-0026 (no HEALTHCHECK in a distroless image).
 
 ### Changed
 
-- Go 1.27.4 (go.mod, mise toolchain and the `golang:1.27.4-alpine3.24`
-  builder image, pinned by digest). govulncheck reports no known
-  vulnerabilities.
+- Built with Go 1.27.4 (go.mod, mise toolchain and the
+  `golang:1.27.4-alpine3.24` builder image, pinned by digest). govulncheck
+  reports no known vulnerabilities.
+
+### Added (repository)
+
+- SECURITY.md with private vulnerability reporting, CODE_OF_CONDUCT.md,
+  CODEOWNERS, issue forms and a pull request template.
+- Weekly security scan of the latest release (trivy image scan per
+  platform, govulncheck, repository secret and misconfiguration scan) with
+  results in the Security tab.
+- Dependabot cooldown for version updates; mise tool bumps skip versions
+  published in the last 7 days.
 
 ## [0.3.1] - 2026-11-08
 
@@ -126,5 +155,6 @@ Read these before upgrading from upstream 0.2.x:
 Releases up to v0.2.79 were published by
 [stakater/GitWebhookProxy](https://github.com/stakater/GitWebhookProxy/releases).
 
+[0.3.2]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.2
 [0.3.1]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.1
 [0.3.0]: https://github.com/schwichtgit/GitWebhookProxy/releases/tag/v0.3.0
