@@ -133,6 +133,12 @@ See <https://go.dev/doc/security/fips140>.
   `make image-scan` on the host-architecture image (trivy CVE and secret
   scan)
 
+Pull requests that only change documentation (markdown files, `docs/`,
+`LICENSE`, issue templates) run `make docs-lint` in the `qa` job and skip
+`test` and `image`. The jobs are required checks in the `master` ruleset, so
+the workflow always starts; a skipped job counts as passed. Pushes to
+`master` always run everything.
+
 ## Scheduled security scans
 
 `.github/workflows/security.yml` runs every Monday, on demand
