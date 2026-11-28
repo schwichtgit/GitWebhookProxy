@@ -57,7 +57,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
           version: ${{ env.MISE_VERSION }}
           install: true
@@ -77,7 +77,7 @@ jobs:
           trivy image --platform "$PLATFORM" --scanners vuln,secret \
             --format sarif --output trivy-image.sarif "${IMAGE}:${TAG#v}"
 
-      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      - uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         if: always() && hashFiles('trivy-image.sarif') != ''
         with:
           sarif_file: trivy-image.sarif
@@ -110,7 +110,7 @@ jobs:
           persist-credentials: false
           ref: ${{ matrix.ref == 'release' && needs.release.outputs.tag || '' }}
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
           version: ${{ env.MISE_VERSION }}
           install: true
@@ -121,7 +121,7 @@ jobs:
 
       # SARIF upload is skipped for the release ref: code scanning tracks the
       # default branch, and the release tag result is reported by the gate.
-      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      - uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         if: always() && matrix.ref == '' && hashFiles('govulncheck.sarif') != ''
         with:
           sarif_file: govulncheck.sarif
@@ -141,7 +141,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
           version: ${{ env.MISE_VERSION }}
           install: true
@@ -153,7 +153,7 @@ jobs:
             --helm-set config.upstreamURL=https://example.com \
             --format sarif --output trivy-repo.sarif .
 
-      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      - uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         if: always() && hashFiles('trivy-repo.sarif') != ''
         with:
           sarif_file: trivy-repo.sarif
